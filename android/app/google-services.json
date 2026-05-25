@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "933002366079",
+    "project_id": "campusskillswap-a9f45",
+    "storage_bucket": "campusskillswap-a9f45.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:933002366079:android:da9addce1601207798434a",
+        "android_client_info": {
+          "package_name": "com.android.application"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAHzl_ELKR3uiDhWj58hmKx_Mdsthh0w70"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:933002366079:android:3e321ee281faccc398434a",
+        "android_client_info": {
+          "package_name": "com.example.campus_skillswap"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAHzl_ELKR3uiDhWj58hmKx_Mdsthh0w70"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
