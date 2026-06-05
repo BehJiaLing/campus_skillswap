@@ -1,58 +1,21 @@
-// import 'package:flutter/material.dart';
-// import 'package:firebase_core/firebase_core.dart';
-//
-// // import 'firebase_options.dart';
-// import 'screens/auth/login_page.dart';
-// import 'screens/users/post_page.dart';
-//
-// void main() async {
-//   WidgetsFlutterBinding.ensureInitialized();
-//
-//   await Firebase.initializeApp();
-//
-//   runApp(const MyApp());
-// }
-//
-// class MyApp extends StatelessWidget {
-//   const MyApp({super.key});
-//
-//   static const Color darkText = Color(0xFF1F223D);
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return MaterialApp(
-//       title: 'Campus SkillSwap',
-//       debugShowCheckedModeBanner: false,
-//
-//       theme: ThemeData(
-//         useMaterial3: true,
-//         scaffoldBackgroundColor: Colors.white,
-//         colorScheme: ColorScheme.fromSeed(
-//           seedColor: const Color(0xFFC8D4F0),
-//         ),
-//       ),
-//
-//       home: const LoginPage(),
-//
-//       routes: {
-//         '/login': (context) => const LoginPage(),
-//         '/post': (context) => const PostPage(),
-//       },
-//     );
-//   }
-// }
-
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 
-// import 'firebase_options.dart';
+import 'firebase_options.dart';
+import 'screens/auth/login_page.dart';
+import 'screens/auth/signup_page.dart';
+import 'screens/auth/create_profile_page.dart';
+import 'screens/auth/forgot_password_page.dart';
 import 'screens/users/post_page.dart';
+import 'screens/admin/admin_dashboard_page.dart';
+import 'screens/admin/admin_user_page.dart';
+import 'screens/admin/admin_userManage_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp(
-    // options: DefaultFirebaseOptions.currentPlatform,
+    options: DefaultFirebaseOptions.currentPlatform,
   );
 
   runApp(const MyApp());
@@ -78,8 +41,19 @@ class MyApp extends StatelessWidget {
           bodyMedium: TextStyle(color: darkText),
         ),
       ),
+      initialRoute: '/login',
+      routes: {
+        '/login': (context) => const LoginPage(),
+        '/signup': (context) => const SignUpPage(),
+        '/create-profile': (context) => const CreateProfilePage(),
+        '/forgot-password': (context) => const ForgotPasswordPage(),
 
-      home: const PostPage(),
+        '/post': (context) => const PostPage(),
+
+        '/admin/dashboard': (context) => const AdminDashboardPage(),
+        '/admin/user-management': (context) => const UserManagementPage(),
+        '/admin/users': (context) => const AdminUsersPage(),
+      },
     );
   }
 }
