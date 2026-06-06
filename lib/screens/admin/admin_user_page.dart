@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'admin_edit_user_page.dart';
 
 class AdminUsersPage extends StatefulWidget {
   const AdminUsersPage({super.key});
@@ -37,7 +38,6 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
 
   String _getSkills(Map<String, dynamic> data) {
     final rawSkills = data['skills'];
-
     if (rawSkills == null) return 'No skills added';
 
     if (rawSkills is List) {
@@ -98,7 +98,6 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-
               const SizedBox(height: 18),
 
               Row(
@@ -151,8 +150,15 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                 bgColor: const Color(0xFFF5F5FA),
                 onTap: () {
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Edit Profile coming soon')),
+
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => AdminEditUserPage(
+                        uid: uid,
+                        userData: data,
+                      ),
+                    ),
                   );
                 },
               ),
@@ -258,7 +264,6 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                 style: const TextStyle(color: Colors.white),
               ),
             ),
-
             const SizedBox(width: 12),
 
             Expanded(
@@ -299,9 +304,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                     fontSize: 11,
                   ),
                 ),
-
                 const SizedBox(height: 6),
-
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,
@@ -322,9 +325,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 4),
-
                 const Text(
                   'Tap to manage',
                   style: TextStyle(
@@ -344,7 +345,6 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: bg,
-
       appBar: AppBar(
         title: const Text('User Management'),
         backgroundColor: navy,
@@ -356,7 +356,6 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
           },
         ),
       ),
-
       body: Column(
         children: [
           Padding(
@@ -410,7 +409,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                 return ListView.separated(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                   itemCount: filteredDocs.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  separatorBuilder: (context, index) => const SizedBox(height: 10),
                   itemBuilder: (context, index) {
                     final doc = filteredDocs[index];
                     final data = doc.data() as Map<String, dynamic>;

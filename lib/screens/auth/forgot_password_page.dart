@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
@@ -42,7 +43,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     }
 
     if (!_isEmailValid(email)) {
-      showMessage('Please enter a valid email, example: name@gmail.com');
+      showMessage('Invalid email format. Please enter a real email address.');
       return;
     }
 
@@ -92,6 +93,12 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
+      autocorrect: false,
+      enableSuggestions: false,
+      textInputAction: TextInputAction.done,
+      inputFormatters: [
+        FilteringTextInputFormatter.deny(RegExp(r'\s')),
+      ],
       decoration: InputDecoration(
         hintText: hintText,
         filled: true,
@@ -197,7 +204,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
           const SizedBox(height: 8),
 
           Text(
-            'A password reset link has been sent to ${_emailCtrl.text.trim()}. Please check your email.',
+            'A password reset link has been sent to ${_emailCtrl.text.trim()}. Please check your email, including your Spam or Junk folder.',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: textMid,
