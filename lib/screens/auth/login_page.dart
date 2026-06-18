@@ -60,12 +60,45 @@ class _LoginPageState extends State<LoginPage> {
         password: password,
       );
 
-      final user = credential.user;
+      User? user = credential.user;
 
       if (user == null) {
         if (!mounted) return;
+
         setState(() {
           loginError = "User not found.";
+        });
+        return;
+      }
+
+      // Refresh Firebase user data to get latest email verification status
+      await user.reload();
+      user = FirebaseAuth.instance.currentUser;
+
+      if (user == null) {
+        if (!mounted) return;
+
+        setState(() {
+          loginError = "User not found.";
+        });
+        return;
+      }
+
+      // Email verification checking
+      if (user.emailVerified == false) {
+        try {
+          await user.sendEmailVerification();
+        } catch (_) {
+          // Ignore resend error to avoid crashing the login page
+        }
+
+        await FirebaseAuth.instance.signOut();
+
+        if (!mounted) return;
+
+        setState(() {
+          loginError =
+          "Please verify your email before logging in. A verification email has been sent.";
         });
         return;
       }
@@ -79,6 +112,7 @@ class _LoginPageState extends State<LoginPage> {
         await FirebaseAuth.instance.signOut();
 
         if (!mounted) return;
+
         setState(() {
           loginError = "User profile not found.";
         });
@@ -90,12 +124,18 @@ class _LoginPageState extends State<LoginPage> {
       final profileCompleted = data['profileCompleted'] ?? false;
       final suspended = data['suspended'] ?? false;
 
+      // Update Firestore emailVerified field after successful verification
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+        'emailVerified': true,
+      });
+
       if (suspended == true) {
         await FirebaseAuth.instance.signOut();
 
         if (!mounted) return;
+
         setState(() {
-          loginError = "Your account has been suspended.";
+          loginError = "Your account has been deactivated.";
         });
         return;
       }
@@ -121,6 +161,8 @@ class _LoginPageState extends State<LoginPage> {
           loginError = "Invalid email format.";
         } else if (e.code == 'too-many-requests') {
           loginError = "Too many attempts. Please try again later.";
+        } else if (e.code == 'network-request-failed') {
+          loginError = "Network error. Please check your internet connection.";
         } else {
           loginError = e.message ?? "Login failed.";
         }
@@ -215,6 +257,7 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+
       body: SafeArea(
         child: SingleChildScrollView(
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,

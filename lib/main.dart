@@ -2,14 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 
 import 'firebase_options.dart';
+
 import 'screens/auth/login_page.dart';
 import 'screens/auth/signup_page.dart';
 import 'screens/auth/create_profile_page.dart';
 import 'screens/auth/forgot_password_page.dart';
+
 import 'screens/users/post_page.dart';
+
 import 'screens/admin/admin_dashboard_page.dart';
-import 'screens/admin/admin_user_page.dart';
-import 'screens/admin/admin_userManage_page.dart';
+import 'screens/admin/admin_user_management_page.dart';
+import 'screens/admin/admin_user_management_dashboard.dart';
+import 'screens/admin/admin_post_manage_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -53,6 +57,8 @@ class MyApp extends StatelessWidget {
         '/admin/dashboard': (context) => const AdminDashboardPage(),
         '/admin/user-management': (context) => const UserManagementPage(),
         '/admin/users': (context) => const AdminUsersPage(),
+
+        '/admin/post-management': (context) => const AdminPostManagementPage(),
       },
     );
   }

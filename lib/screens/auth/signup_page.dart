@@ -141,7 +141,7 @@ class _SignUpPageState extends State<SignUpPage> {
 
       if (!mounted) return;
 
-      showMessage('Please login.');
+      showMessage('Account created. Please verify your email before logging in.');
 
       Navigator.pushReplacementNamed(context, '/login');
     } on FirebaseAuthException catch (e) {
