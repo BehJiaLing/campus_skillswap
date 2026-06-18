@@ -25,29 +25,45 @@ class _LoginPageState extends State<LoginPage> {
   final Color border = const Color(0xFFE0E0F0);
   final Color green = const Color(0xFF4CAF50);
 
+  void clearError() {
+    if (loginError != null) {
+      setState(() {
+        loginError = null;
+      });
+    }
+  }
+
   Future<void> login() async {
+    FocusScope.of(context).unfocus();
+
     setState(() {
       loginError = null;
     });
 
-    if (emailCtrl.text.trim().isEmpty || passwordCtrl.text.trim().isEmpty) {
+    final email = emailCtrl.text.trim();
+    final password = passwordCtrl.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
       setState(() {
         loginError = "Please enter email and password.";
       });
       return;
     }
 
-    setState(() => isLoading = true);
+    setState(() {
+      isLoading = true;
+    });
 
     try {
       final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: emailCtrl.text.trim(),
-        password: passwordCtrl.text.trim(),
+        email: email,
+        password: password,
       );
 
       final user = credential.user;
 
       if (user == null) {
+        if (!mounted) return;
         setState(() {
           loginError = "User not found.";
         });
@@ -60,10 +76,12 @@ class _LoginPageState extends State<LoginPage> {
           .get();
 
       if (!userDoc.exists) {
+        await FirebaseAuth.instance.signOut();
+
+        if (!mounted) return;
         setState(() {
           loginError = "User profile not found.";
         });
-        await FirebaseAuth.instance.signOut();
         return;
       }
 
@@ -74,6 +92,8 @@ class _LoginPageState extends State<LoginPage> {
 
       if (suspended == true) {
         await FirebaseAuth.instance.signOut();
+
+        if (!mounted) return;
         setState(() {
           loginError = "Your account has been suspended.";
         });
@@ -90,54 +110,33 @@ class _LoginPageState extends State<LoginPage> {
         Navigator.pushReplacementNamed(context, '/post');
       }
     } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+
       setState(() {
-        if (e.code == 'invalid-credential') {
+        if (e.code == 'invalid-credential' ||
+            e.code == 'wrong-password' ||
+            e.code == 'user-not-found') {
           loginError = "Incorrect email or password.";
-        } else if (e.code == 'user-not-found') {
-          loginError = "No account found with this email.";
-        } else if (e.code == 'wrong-password') {
-          loginError = "Wrong password. Please try again.";
         } else if (e.code == 'invalid-email') {
           loginError = "Invalid email format.";
+        } else if (e.code == 'too-many-requests') {
+          loginError = "Too many attempts. Please try again later.";
         } else {
           loginError = e.message ?? "Login failed.";
         }
       });
     } catch (e) {
+      if (!mounted) return;
+
       setState(() {
-        loginError = "Error: $e";
+        loginError = "Login failed. Please try again.";
       });
     } finally {
       if (mounted) {
-        setState(() => isLoading = false);
+        setState(() {
+          isLoading = false;
+        });
       }
-    }
-  }
-
-  Future<void> resetPassword() async {
-    setState(() {
-      loginError = null;
-    });
-
-    if (emailCtrl.text.trim().isEmpty) {
-      setState(() {
-        loginError = "Please enter your email first.";
-      });
-      return;
-    }
-
-    try {
-      await FirebaseAuth.instance.sendPasswordResetEmail(
-        email: emailCtrl.text.trim(),
-      );
-
-      setState(() {
-        loginError = "Password reset email sent. Please check your inbox.";
-      });
-    } on FirebaseAuthException catch (e) {
-      setState(() {
-        loginError = e.message ?? "Reset password failed.";
-      });
     }
   }
 
@@ -154,6 +153,8 @@ class _LoginPageState extends State<LoginPage> {
     bool obscureText = false,
     Widget? suffixIcon,
     TextInputType? keyboardType,
+    TextInputAction? textInputAction,
+    void Function(String)? onSubmitted,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -163,8 +164,12 @@ class _LoginPageState extends State<LoginPage> {
       ),
       child: TextField(
         controller: controller,
+        enabled: !isLoading,
         obscureText: obscureText,
         keyboardType: keyboardType,
+        textInputAction: textInputAction,
+        onSubmitted: onSubmitted,
+        onChanged: (_) => clearError(),
         decoration: InputDecoration(
           hintText: hintText,
           hintStyle: TextStyle(color: textLight, fontSize: 13),
@@ -210,9 +215,9 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-
       body: SafeArea(
         child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: const EdgeInsets.symmetric(horizontal: 28),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -226,7 +231,11 @@ class _LoginPageState extends State<LoginPage> {
                   color: navy,
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: const Icon(Icons.school, color: Colors.white, size: 36),
+                child: const Icon(
+                  Icons.school,
+                  color: Colors.white,
+                  size: 36,
+                ),
               ),
 
               const SizedBox(height: 24),
@@ -245,7 +254,11 @@ class _LoginPageState extends State<LoginPage> {
 
               Text(
                 'Exchange skills, request help, chat with others, and track your learning progress.',
-                style: TextStyle(color: textMid, fontSize: 14, height: 1.6),
+                style: TextStyle(
+                  color: textMid,
+                  fontSize: 14,
+                  height: 1.6,
+                ),
               ),
 
               const SizedBox(height: 40),
@@ -254,6 +267,7 @@ class _LoginPageState extends State<LoginPage> {
                 controller: emailCtrl,
                 hintText: 'Email',
                 keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
               ),
 
               const SizedBox(height: 10),
@@ -262,8 +276,16 @@ class _LoginPageState extends State<LoginPage> {
                 controller: passwordCtrl,
                 hintText: 'Password',
                 obscureText: hidePassword,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) {
+                  if (!isLoading) {
+                    login();
+                  }
+                },
                 suffixIcon: IconButton(
-                  onPressed: () {
+                  onPressed: isLoading
+                      ? null
+                      : () {
                     setState(() {
                       hidePassword = !hidePassword;
                     });
@@ -285,8 +307,11 @@ class _LoginPageState extends State<LoginPage> {
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
-                  onPressed: () =>
-                      Navigator.pushNamed(context, '/forgot-password'),
+                  onPressed: isLoading
+                      ? null
+                      : () {
+                    Navigator.pushNamed(context, '/forgot-password');
+                  },
                   child: Text(
                     'Forgot password?',
                     style: TextStyle(fontSize: 12, color: navy),
@@ -304,6 +329,7 @@ class _LoginPageState extends State<LoginPage> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: green,
                     foregroundColor: Colors.white,
+                    disabledBackgroundColor: green.withValues(alpha: 0.6),
                   ),
                   child: isLoading
                       ? const SizedBox(
@@ -326,7 +352,11 @@ class _LoginPageState extends State<LoginPage> {
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton(
-                  onPressed: () => Navigator.pushNamed(context, '/signup'),
+                  onPressed: isLoading
+                      ? null
+                      : () {
+                    Navigator.pushNamed(context, '/signup');
+                  },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: navy,
                     side: BorderSide(color: navy),
