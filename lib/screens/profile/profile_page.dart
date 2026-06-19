@@ -101,9 +101,15 @@ class ProfilePage extends StatelessWidget {
           final school = data['school'] ?? '';
           final skills = data['skills'] ?? [];
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
+          return SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(
+                  20,
+                  15,
+                  20,
+                  20,
+                ),
+                child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
@@ -257,6 +263,7 @@ class ProfilePage extends StatelessWidget {
                 ),
               ],
             ),
+          ),
           );
         },
       ),
