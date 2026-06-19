@@ -115,6 +115,7 @@ class PostPage extends StatelessWidget {
                         builder: (_) => ChatDetailPage(
                           userName: data['name'] ?? 'User',
                           chatId: chatId!,
+                          otherUserId: selectedUid,
                         ),
                       ),
                     );

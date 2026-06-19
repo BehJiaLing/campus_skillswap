@@ -15,6 +15,7 @@ import 'screens/admin/admin_user_management_page.dart';
 import 'screens/admin/admin_user_management_dashboard.dart';
 import 'screens/admin/admin_post_manage_page.dart';
 import 'screens/chat/chat_list_page.dart';
+import 'screens/profile/profile_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,7 +47,8 @@ class MyApp extends StatelessWidget {
           bodyMedium: TextStyle(color: darkText),
         ),
       ),
-       initialRoute: '/login',
+      home: const ProfilePage(),
+      //initialRoute: '/login',
       //home: const ChatListPage(),
       routes: {
         '/login': (context) => const LoginPage(),
@@ -57,6 +59,7 @@ class MyApp extends StatelessWidget {
         '/post': (context) => const PostPage(),
 
         '/chat': (context) => const ChatListPage(),
+        '/profile': (context) => const ProfilePage(),
 
         '/admin/dashboard': (context) => const AdminDashboardPage(),
         '/admin/user-management': (context) => const UserManagementPage(),

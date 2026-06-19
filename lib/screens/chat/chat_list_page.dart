@@ -343,10 +343,9 @@ class _ChatListPageState
                                     MaterialPageRoute(
                                       builder: (_) =>
                                           ChatDetailPage(
-                                            userName:
-                                            userName,
-                                            chatId:
-                                            chats[index].id,
+                                            userName: userName,
+                                            chatId: chats[index].id,
+                                            otherUserId: otherUserId,
                                           ),
                                     ),
                                   );

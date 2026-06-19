@@ -6,11 +6,13 @@ class ChatDetailPage extends StatefulWidget {
 
   final String userName;
   final String chatId;
+  final String otherUserId;
 
   const ChatDetailPage({
     super.key,
     required this.userName,
     required this.chatId,
+    required this.otherUserId,
   });
 
   @override
@@ -155,12 +157,39 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const Text(
-                  'Online',
-                  style: TextStyle(
-                    color: Colors.green,
-                    fontSize: 12,
-                  ),
+                StreamBuilder<DocumentSnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(widget.otherUserId)
+                      .snapshots(),
+
+                  builder: (context, snapshot) {
+
+                    if (!snapshot.hasData) {
+                      return const SizedBox();
+                    }
+
+                    final userData =
+                    snapshot.data!.data()
+                    as Map<String, dynamic>;
+
+                    final isOnline =
+                        userData['isOnline'] ?? false;
+
+                    return Text(
+                      isOnline
+                          ? 'Online'
+                          : 'Offline',
+
+                      style: TextStyle(
+                        color: isOnline
+                            ? Colors.green
+                            : Colors.grey,
+
+                        fontSize: 12,
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
