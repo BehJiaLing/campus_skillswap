@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../chat/chat_detail_page.dart';
+import '../../widgets/bottom_sidebar.dart';
 
 class PostPage extends StatelessWidget {
   const PostPage({super.key});
@@ -13,7 +14,8 @@ class PostPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Users Collection Test"),
+        automaticallyImplyLeading: false,
+        title: const Text("Post Dashboard"),
         backgroundColor: cardBlue,
       ),
       body: StreamBuilder<QuerySnapshot>(
@@ -139,6 +141,7 @@ class PostPage extends StatelessWidget {
           );
         },
       ),
+      bottomNavigationBar: const BottomSidebar(currentIndex: 0),
     );
   }
 }

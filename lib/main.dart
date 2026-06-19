@@ -9,7 +9,8 @@ import 'screens/auth/create_profile_page.dart';
 import 'screens/auth/forgot_password_page.dart';
 
 import 'screens/users/post_page.dart';
-
+import 'screens/users/create_post_page.dart';
+import 'screens/users/request_post_page.dart';
 import 'screens/admin/admin_dashboard_page.dart';
 import 'screens/admin/admin_user_management_page.dart';
 import 'screens/admin/admin_user_management_dashboard.dart';
@@ -47,9 +48,9 @@ class MyApp extends StatelessWidget {
           bodyMedium: TextStyle(color: darkText),
         ),
       ),
-      home: const ProfilePage(),
-      //initialRoute: '/login',
-      //home: const ChatListPage(),
+
+      initialRoute: '/login',
+
       routes: {
         '/login': (context) => const LoginPage(),
         '/signup': (context) => const SignUpPage(),
@@ -57,14 +58,14 @@ class MyApp extends StatelessWidget {
         '/forgot-password': (context) => const ForgotPasswordPage(),
 
         '/post': (context) => const PostPage(),
-
+        '/create-post': (context) => const CreatePostPage(),
+        '/request-post': (context) => const RequestPostPage(),
         '/chat': (context) => const ChatListPage(),
         '/profile': (context) => const ProfilePage(),
 
         '/admin/dashboard': (context) => const AdminDashboardPage(),
         '/admin/user-management': (context) => const UserManagementPage(),
         '/admin/users': (context) => const AdminUsersPage(),
-
         '/admin/post-management': (context) => const AdminPostManagementPage(),
       },
     );

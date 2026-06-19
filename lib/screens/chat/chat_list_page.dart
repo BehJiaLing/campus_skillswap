@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'chat_detail_page.dart';
+import '../../widgets/bottom_sidebar.dart';
 
 class ChatListPage extends StatefulWidget {
   const ChatListPage({super.key});
@@ -60,6 +61,7 @@ class _ChatListPageState
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Text("Chat History"),
       ),
 
@@ -404,6 +406,7 @@ class _ChatListPageState
           ),
         ],
       ),
+      bottomNavigationBar: const BottomSidebar(currentIndex: 1),
     );
 
   }
