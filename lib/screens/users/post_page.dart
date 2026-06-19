@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../chat/chat_detail_page.dart';
 
 class PostPage extends StatelessWidget {
   const PostPage({super.key});
@@ -41,10 +43,82 @@ class PostPage extends StatelessWidget {
             itemBuilder: (context, index) {
               final data = users[index].data() as Map<String, dynamic>;
 
+              final currentUid =
+                  FirebaseAuth.instance.currentUser!.uid;
+
+              final userUid =
+                  data['uid'] ?? users[index].id;
+
+              if (userUid == currentUid) {
+                return const SizedBox();
+              }
+
               return Card(
                 color: cardBlue,
                 margin: const EdgeInsets.only(bottom: 16),
                 child: ListTile(
+                  onTap: () async {
+                    final currentUid =
+                        FirebaseAuth.instance.currentUser!.uid;
+
+                    final selectedUid =
+                        data['uid'] ?? users[index].id;
+
+                    String? chatId;
+
+                    final chatSnapshot =
+                    await FirebaseFirestore.instance
+                        .collection('chats')
+                        .get();
+
+                    for (var chatDoc in chatSnapshot.docs) {
+
+                      final chatData = chatDoc.data();
+
+                      final List userIDs =
+                          chatData['userIDs'] ?? [];
+
+                      if (userIDs.contains(currentUid) &&
+                          userIDs.contains(selectedUid)) {
+
+                        chatId = chatDoc.id;
+                        break;
+                      }
+                    }
+
+                    if (chatId == null) {
+
+                      final newChat =
+                      await FirebaseFirestore.instance
+                          .collection('chats')
+                          .add({
+
+                        'userIDs': [
+                          currentUid,
+                          selectedUid,
+                        ],
+
+                        'lastMessage': '',
+                        'createdAt':
+                        FieldValue.serverTimestamp(),
+
+                        'updatedAt':
+                        FieldValue.serverTimestamp(),
+                      });
+
+                      chatId = newChat.id;
+                    }
+
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ChatDetailPage(
+                          userName: data['name'] ?? 'User',
+                          chatId: chatId!,
+                        ),
+                      ),
+                    );
+                  },
                   title: Text(
                     data['name'] ?? 'No name',
                     style: TextStyle(

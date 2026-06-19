@@ -126,7 +126,7 @@ class _LoginPageState extends State<LoginPage> {
 
       // Update Firestore emailVerified field after successful verification
       await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
-        'emailVerified': true,
+        'emailVerified': true, 'isOnline': true,
       });
 
       if (suspended == true) {
