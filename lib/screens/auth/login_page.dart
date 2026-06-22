@@ -98,7 +98,7 @@ class _LoginPageState extends State<LoginPage> {
 
         setState(() {
           loginError =
-          "Please verify your email before logging in. A verification email has been sent.";
+          "Please verify your email before logging in. A verification email has been sent, please check your inbox, spam, or junk folder. ";
         });
         return;
       }

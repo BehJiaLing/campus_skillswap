@@ -10,15 +10,46 @@ class ProfileEditPage extends StatefulWidget {
 }
 
 class _ProfileEditPageState extends State<ProfileEditPage> {
-
   final _formKey = GlobalKey<FormState>();
 
   final _nameController = TextEditingController();
-  final _schoolController = TextEditingController();
-  final _courseController = TextEditingController();
+  final _customCourseController = TextEditingController();
   final _skillsController = TextEditingController();
 
+  String? _selectedCourse;
+
   bool isLoading = true;
+  bool isSaving = false;
+
+  final List<String> courseOptions = [
+    'Bachelor of Computer Science',
+    'Bachelor of Information Technology',
+    'Bachelor of Software Engineering',
+    'Bachelor of Business Administration',
+    'Bachelor of Accounting and Finance',
+    'Bachelor of Mass Communication',
+    'Bachelor of Psychology',
+    'Bachelor of Biotechnology',
+
+    'Diploma in Computer Science',
+    'Diploma in Information Technology',
+    'Diploma in Business',
+    'Diploma in Accounting',
+    'Diploma in Mass Communication',
+    'Diploma in Hotel Management',
+    'Diploma in Culinary Arts',
+    'Diploma in Interior Design',
+    'Diploma in Digital Media',
+    'Diploma in Mechanical Engineering',
+    'Diploma in Civil Engineering',
+
+    'Foundation in Science',
+    'Foundation in Business',
+    'Foundation in Arts',
+    'A-Level',
+
+    'Other',
+  ];
 
   @override
   void initState() {
@@ -26,57 +57,108 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     loadUserData();
   }
 
-  Future<void> loadUserData() async {
-    final uid = FirebaseAuth.instance.currentUser!.uid;
-
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .get();
-
-    final data = doc.data();
-
-    if (data != null) {
-      _nameController.text = data['name'] ?? '';
-      _schoolController.text = data['school'] ?? '';
-      _courseController.text = data['course'] ?? '';
-
-      _skillsController.text =
-          ((data['skills'] ?? []) as List).join(', ');
+  List<String> readSkills(dynamic value) {
+    if (value is List) {
+      return value.map((e) => e.toString()).toList();
     }
 
-    setState(() {
-      isLoading = false;
-    });
+    if (value is String) {
+      return value
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+    }
+
+    return [];
+  }
+
+  Future<void> loadUserData() async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, '/login');
+      return;
+    }
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      final data = doc.data();
+
+      if (data != null) {
+        final name = data['name']?.toString() ?? '';
+        final course = data['course']?.toString() ?? '';
+        final skills = readSkills(data['skills']);
+
+        _nameController.text = name;
+        _skillsController.text = skills.join(', ');
+
+        if (courseOptions.contains(course)) {
+          _selectedCourse = course;
+        } else if (course.isNotEmpty) {
+          _selectedCourse = 'Other';
+          _customCourseController.text = course;
+        }
+      }
+    } catch (e) {
+      showMessage('Error loading profile: $e');
+    }
+
+    if (mounted) {
+      setState(() {
+        isLoading = false;
+      });
+    }
   }
 
   Future<void> saveProfile() async {
-
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final user = FirebaseAuth.instance.currentUser;
 
-    List<String> skills =
-    _skillsController.text
-        .split(',')
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .toList();
+    if (user == null) {
+      showMessage('User not logged in.');
+      return;
+    }
 
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .update({
-      'name': _nameController.text,
-      'school': _schoolController.text,
-      'course': _courseController.text,
-      'skills': skills,
-      'updatedAt': Timestamp.now(),
+    final course = _selectedCourse == 'Other'
+        ? _customCourseController.text.trim()
+        : _selectedCourse?.trim();
+
+    if (course == null || course.isEmpty) {
+      showMessage('Please select or enter your course.');
+      return;
+    }
+
+    setState(() {
+      isSaving = true;
     });
 
-    if (mounted) {
+    try {
+      final skills = _skillsController.text
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+        'name': _nameController.text.trim(),
+        'school': 'INTI College',
+        'course': course,
+        'skills': skills,
+        'profileCompleted': true,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Profile Updated'),
@@ -84,13 +166,127 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       );
 
       Navigator.pop(context);
+    } catch (e) {
+      showMessage('Error saving profile: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isSaving = false;
+        });
+      }
     }
+  }
+
+  void showMessage(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  InputDecoration inputDecoration({String? hintText}) {
+    return InputDecoration(
+      hintText: hintText,
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 16,
+      ),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(15),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(15),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(15),
+        borderSide: const BorderSide(
+          color: Color(0xFF6D718B),
+          width: 1.5,
+        ),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(15),
+        borderSide: const BorderSide(
+          color: Colors.red,
+          width: 1,
+        ),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(15),
+        borderSide: const BorderSide(
+          color: Colors.red,
+          width: 1.5,
+        ),
+      ),
+    );
+  }
+
+  Widget label(String text) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 14,
+        ),
+      ),
+    );
+  }
+
+  Widget courseDropdown() {
+    return DropdownButtonFormField<String>(
+      value: _selectedCourse,
+      isExpanded: true,
+      decoration: inputDecoration(
+        hintText: 'Select your course',
+      ),
+      items: courseOptions.map((course) {
+        return DropdownMenuItem<String>(
+          value: course,
+          child: Text(
+            course,
+            overflow: TextOverflow.ellipsis,
+          ),
+        );
+      }).toList(),
+      validator: (value) {
+        if (value == null || value.trim().isEmpty) {
+          return 'Please select your course';
+        }
+
+        return null;
+      },
+      onChanged: (value) {
+        setState(() {
+          _selectedCourse = value;
+
+          if (value != 'Other') {
+            _customCourseController.clear();
+          }
+        });
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _customCourseController.dispose();
+    _skillsController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
       return const Scaffold(
+        backgroundColor: Color(0xFFF8F8F8),
         body: Center(
           child: CircularProgressIndicator(),
         ),
@@ -103,7 +299,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
-
+        foregroundColor: Colors.black,
         title: const Text(
           'Edit Profile',
           style: TextStyle(
@@ -112,263 +308,140 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
           ),
         ),
       ),
-        body: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
 
-            child: Container(
-              padding: const EdgeInsets.all(20),
-
-              decoration: BoxDecoration(
-                color: const Color(0xFFF1F1E8),
-
-                borderRadius:
-                BorderRadius.circular(25),
-
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 10,
-                    offset: Offset(0, 5),
-                  ),
-                ],
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF1F1E8),
+            borderRadius: BorderRadius.circular(25),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 10,
+                offset: Offset(0, 5),
               ),
-
-              child: Form(
-                key: _formKey,
-
-                child: Column(
-          children: [
-
-            GestureDetector(
-              onTap: () {},
-
-              child: const CircleAvatar(
-                radius: 45,
-                backgroundColor: Color(0xFF6D718B),
-
-                child: Icon(
-                  Icons.person,
-                  color: Colors.white,
-                  size: 45,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 15),
-
-            const Text(
-              "Edit Your Profile",
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-
-            const SizedBox(height: 40),
-
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                "Name",
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            TextFormField(
-              controller: _nameController,
-
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Name cannot be empty';
-                }
-
-                if (value.trim().length < 3) {
-                  return 'Name must be at least 3 characters';
-                }
-
-                return null;
-              },
-
-              decoration: InputDecoration(
-
-                filled: true,
-                fillColor: Colors.white,
-
-                border: OutlineInputBorder(
-                  borderRadius:
-                  BorderRadius.circular(15),
-
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 25),
-
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                "School",
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            TextFormField(
-              controller: _schoolController,
-
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'School cannot be empty';
-                }
-
-                return null;
-              },
-
-              decoration: InputDecoration(
-
-                filled: true,
-                fillColor: Colors.white,
-
-                border: OutlineInputBorder(
-                  borderRadius:
-                  BorderRadius.circular(15),
-
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 25),
-
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                "Course",
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            TextFormField(
-              controller: _courseController,
-
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Course cannot be empty';
-                }
-
-                return null;
-              },
-
-              decoration: InputDecoration(
-
-                filled: true,
-                fillColor: Colors.white,
-
-                border: OutlineInputBorder(
-                  borderRadius:
-                  BorderRadius.circular(15),
-
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 25),
-
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                "Skills (Separate by comma)",
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            TextFormField(
-              controller: _skillsController,
-
-              maxLines: 3,
-
-              validator: (value) {
-
-                if (value == null ||
-                    value.trim().isEmpty) {
-
-                  return 'Please enter at least one skill';
-                }
-
-                return null;
-              },
-
-              decoration: InputDecoration(
-
-                filled: true,
-                fillColor: Colors.white,
-
-                border: OutlineInputBorder(
-                  borderRadius:
-                  BorderRadius.circular(15),
-
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 25),
-
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-
-              child: ElevatedButton(
-                onPressed: saveProfile,
-
-                style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                  const Color(0xFF6D718B),
-
-                  foregroundColor:
-                  Colors.white,
-
-                  shape: RoundedRectangleBorder(
-                    borderRadius:
-                    BorderRadius.circular(15),
-                  ),
-                ),
-
-                child: const Text(
-                  "Save Changes",
+            ],
+          ),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              children: [
+                const Text(
+                  "Edit Your Profile",
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 22,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-              ),
+
+                const SizedBox(height: 35),
+
+                label("Name"),
+                const SizedBox(height: 8),
+
+                TextFormField(
+                  controller: _nameController,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Name cannot be empty';
+                    }
+
+                    if (value.trim().length < 3) {
+                      return 'Name must be at least 3 characters';
+                    }
+
+                    return null;
+                  },
+                  decoration: inputDecoration(
+                    hintText: 'Your full name',
+                  ),
+                ),
+
+                const SizedBox(height: 25),
+
+                label("Course"),
+                const SizedBox(height: 8),
+
+                courseDropdown(),
+
+                if (_selectedCourse == 'Other') ...[
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _customCourseController,
+                    validator: (value) {
+                      if (_selectedCourse == 'Other' &&
+                          (value == null || value.trim().isEmpty)) {
+                        return 'Please enter your course';
+                      }
+
+                      return null;
+                    },
+                    decoration: inputDecoration(
+                      hintText: 'Enter your course',
+                    ),
+                  ),
+                ],
+
+                const SizedBox(height: 25),
+
+                label("Skills (Separate by comma)"),
+                const SizedBox(height: 8),
+
+                TextFormField(
+                  controller: _skillsController,
+                  maxLines: 3,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Please enter at least one skill';
+                    }
+
+                    return null;
+                  },
+                  decoration: inputDecoration(
+                    hintText: 'e.g. Python, Canva, Excel',
+                  ),
+                ),
+
+                const SizedBox(height: 25),
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 55,
+                  child: ElevatedButton(
+                    onPressed: isSaving ? null : saveProfile,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF6D718B),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                    ),
+                    child: isSaving
+                        ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2.5,
+                      ),
+                    )
+                        : const Text(
+                      "Save Changes",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
-    ),
-        ),
     );
   }
 }
