@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -14,9 +16,12 @@ class _SignUpPageState extends State<SignUpPage> {
   final _passCtrl = TextEditingController();
   final _rePassCtrl = TextEditingController();
 
+  Timer? _emailDebounce;
+
   bool _obscure1 = true;
   bool _obscure2 = true;
   bool _loading = false;
+  bool _checkingEmail = false;
 
   String? _emailError;
 
@@ -48,17 +53,83 @@ class _SignUpPageState extends State<SignUpPage> {
   }
 
   void _checkEmailLive() {
-    final email = _emailCtrl.text.trim();
+    final email = _emailCtrl.text.trim().toLowerCase();
+
+    _emailDebounce?.cancel();
+
+    if (email.isEmpty) {
+      setState(() {
+        _emailError = null;
+        _checkingEmail = false;
+      });
+      return;
+    }
+
+    if (!_isEmailValid(email)) {
+      setState(() {
+        _emailError = 'Invalid email format. Example: name@gmail.com';
+        _checkingEmail = false;
+      });
+      return;
+    }
 
     setState(() {
-      if (email.isEmpty) {
-        _emailError = null;
-      } else if (!_isEmailValid(email)) {
-        _emailError = 'Invalid email format. Example: name@gmail.com';
-      } else {
-        _emailError = null;
-      }
+      _emailError = null;
+      _checkingEmail = true;
     });
+
+    _emailDebounce = Timer(const Duration(milliseconds: 700), () {
+      _checkEmailAlreadyRegistered(email);
+    });
+  }
+
+  Future<bool> _checkEmailAlreadyRegistered(String email) async {
+    final currentEmail = email.trim().toLowerCase();
+
+    if (currentEmail.isEmpty || !_isEmailValid(currentEmail)) {
+      return false;
+    }
+
+    try {
+      final registeredEmailDoc = await FirebaseFirestore.instance
+          .collection('registered_emails')
+          .doc(currentEmail)
+          .get();
+
+      final userQuery = await FirebaseFirestore.instance
+          .collection('users')
+          .where('email', isEqualTo: currentEmail)
+          .limit(1)
+          .get();
+
+      final alreadyRegistered =
+          registeredEmailDoc.exists || userQuery.docs.isNotEmpty;
+
+      if (!mounted) return alreadyRegistered;
+
+      final latestTypedEmail = _emailCtrl.text.trim().toLowerCase();
+
+      if (latestTypedEmail != currentEmail) {
+        return alreadyRegistered;
+      }
+
+      setState(() {
+        _checkingEmail = false;
+        _emailError = alreadyRegistered
+            ? 'This email is already registered. Please login instead.'
+            : null;
+      });
+
+      return alreadyRegistered;
+    } catch (e) {
+      if (!mounted) return false;
+
+      setState(() {
+        _checkingEmail = false;
+      });
+
+      return false;
+    }
   }
 
   void _checkPasswordStrength() {
@@ -82,7 +153,7 @@ class _SignUpPageState extends State<SignUpPage> {
           _hasSpecial;
 
   Future<void> _signup() async {
-    final email = _emailCtrl.text.trim();
+    final email = _emailCtrl.text.trim().toLowerCase();
     final password = _passCtrl.text.trim();
     final rePassword = _rePassCtrl.text.trim();
 
@@ -113,6 +184,13 @@ class _SignUpPageState extends State<SignUpPage> {
     setState(() => _loading = true);
 
     try {
+      final alreadyRegistered = await _checkEmailAlreadyRegistered(email);
+
+      if (alreadyRegistered) {
+        showMessage('This email is already registered. Please login instead.');
+        return;
+      }
+
       final credential =
       await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: email,
@@ -137,20 +215,48 @@ class _SignUpPageState extends State<SignUpPage> {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
+      await FirebaseFirestore.instance
+          .collection('registered_emails')
+          .doc(email)
+          .set({
+        'email': email,
+        'uid': user.uid,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
       await FirebaseAuth.instance.signOut();
 
       if (!mounted) return;
 
-      showMessage('Account created. Please verify your email before logging in.');
+      showMessage(
+        'Account created. Please verify your email before logging in.',
+      );
 
       Navigator.pushReplacementNamed(context, '/login');
     } on FirebaseAuthException catch (e) {
-      showMessage(e.message ?? 'Sign up failed.');
+      if (e.code == 'email-already-in-use') {
+        setState(() {
+          _emailError =
+          'This email is already registered. Please login instead.';
+        });
+        showMessage('This email is already registered. Please login instead.');
+      } else if (e.code == 'weak-password') {
+        showMessage('Password is too weak.');
+      } else if (e.code == 'invalid-email') {
+        setState(() {
+          _emailError = 'Invalid email format. Example: name@gmail.com';
+        });
+      } else {
+        showMessage(e.message ?? 'Sign up failed.');
+      }
     } catch (e) {
       showMessage('Error: $e');
     } finally {
       if (mounted) {
-        setState(() => _loading = false);
+        setState(() {
+          _loading = false;
+          _checkingEmail = false;
+        });
       }
     }
   }
@@ -163,6 +269,7 @@ class _SignUpPageState extends State<SignUpPage> {
 
   @override
   void dispose() {
+    _emailDebounce?.cancel();
     _emailCtrl.removeListener(_checkEmailLive);
     _passCtrl.removeListener(_checkPasswordStrength);
     _emailCtrl.dispose();
@@ -245,6 +352,31 @@ class _SignUpPageState extends State<SignUpPage> {
     );
   }
 
+  Widget? _emailSuffixIcon() {
+    final email = _emailCtrl.text.trim().toLowerCase();
+
+    if (_checkingEmail) {
+      return const Padding(
+        padding: EdgeInsets.all(12),
+        child: SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+
+    if (email.isNotEmpty && _emailError == null && _isEmailValid(email)) {
+      return const Icon(
+        Icons.check_circle,
+        color: Colors.green,
+        size: 20,
+      );
+    }
+
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -269,6 +401,7 @@ class _SignUpPageState extends State<SignUpPage> {
               hintText: 'Enter your email',
               keyboardType: TextInputType.emailAddress,
               errorText: _emailError,
+              suffixIcon: _emailSuffixIcon(),
             ),
 
             const SizedBox(height: 14),
