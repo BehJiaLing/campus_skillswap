@@ -52,6 +52,10 @@ class _SignUpPageState extends State<SignUpPage> {
     return emailRegex.hasMatch(email);
   }
 
+  bool _isIntiStudentEmail(String email) {
+    return email.trim().toLowerCase().endsWith('@student.newinti.edu.my');
+  }
+
   void _checkEmailLive() {
     final email = _emailCtrl.text.trim().toLowerCase();
 
@@ -67,7 +71,16 @@ class _SignUpPageState extends State<SignUpPage> {
 
     if (!_isEmailValid(email)) {
       setState(() {
-        _emailError = 'Invalid email format. Example: name@gmail.com';
+        _emailError =
+        'Invalid email format. Example: name@student.newinti.edu.my';
+        _checkingEmail = false;
+      });
+      return;
+    }
+
+    if (!_isIntiStudentEmail(email)) {
+      setState(() {
+        _emailError = 'Only INTI student email is allowed.';
         _checkingEmail = false;
       });
       return;
@@ -86,7 +99,9 @@ class _SignUpPageState extends State<SignUpPage> {
   Future<bool> _checkEmailAlreadyRegistered(String email) async {
     final currentEmail = email.trim().toLowerCase();
 
-    if (currentEmail.isEmpty || !_isEmailValid(currentEmail)) {
+    if (currentEmail.isEmpty ||
+        !_isEmailValid(currentEmail) ||
+        !_isIntiStudentEmail(currentEmail)) {
       return false;
     }
 
@@ -164,7 +179,15 @@ class _SignUpPageState extends State<SignUpPage> {
 
     if (!_isEmailValid(email)) {
       setState(() {
-        _emailError = 'Invalid email format. Example: name@gmail.com';
+        _emailError =
+        'Invalid email format. Example: name@student.newinti.edu.my';
+      });
+      return;
+    }
+
+    if (!_isIntiStudentEmail(email)) {
+      setState(() {
+        _emailError = 'Only INTI student email is allowed.';
       });
       return;
     }
@@ -229,7 +252,7 @@ class _SignUpPageState extends State<SignUpPage> {
       if (!mounted) return;
 
       showMessage(
-        'Account created. Please verify your email before logging in.',
+        'Account created. Please check your email and spam folder to verify your account.',
       );
 
       Navigator.pushReplacementNamed(context, '/login');
@@ -244,8 +267,10 @@ class _SignUpPageState extends State<SignUpPage> {
         showMessage('Password is too weak.');
       } else if (e.code == 'invalid-email') {
         setState(() {
-          _emailError = 'Invalid email format. Example: name@gmail.com';
+          _emailError =
+          'Invalid email format. Example: name@student.newinti.edu.my';
         });
+        showMessage('Invalid email format.');
       } else {
         showMessage(e.message ?? 'Sign up failed.');
       }
@@ -366,7 +391,10 @@ class _SignUpPageState extends State<SignUpPage> {
       );
     }
 
-    if (email.isNotEmpty && _emailError == null && _isEmailValid(email)) {
+    if (email.isNotEmpty &&
+        _emailError == null &&
+        _isEmailValid(email) &&
+        _isIntiStudentEmail(email)) {
       return const Icon(
         Icons.check_circle,
         color: Colors.green,
@@ -394,11 +422,11 @@ class _SignUpPageState extends State<SignUpPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _label('Email'),
+            _label('Student Email'),
             const SizedBox(height: 6),
             _inputField(
               controller: _emailCtrl,
-              hintText: 'Enter your email',
+              hintText: 'Enter your INTI student email',
               keyboardType: TextInputType.emailAddress,
               errorText: _emailError,
               suffixIcon: _emailSuffixIcon(),
