@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'admin_user_access.dart';
+import 'admin_settings_page.dart';
 
 class AdminDrawer extends StatelessWidget {
   const AdminDrawer({super.key});
@@ -33,21 +35,21 @@ class AdminDrawer extends StatelessWidget {
     required String firstLetter,
   }) {
     return CircleAvatar(
-      radius: 42,
+      radius: 38,
       backgroundColor: Colors.white,
       child: profileImageUrl.isNotEmpty
           ? ClipOval(
         child: Image.network(
           profileImageUrl,
-          width: 84,
-          height: 84,
+          width: 76,
+          height: 76,
           fit: BoxFit.cover,
           errorBuilder: (context, error, stackTrace) {
             return Text(
               firstLetter,
               style: const TextStyle(
                 color: Color(0xFF1A1F5E),
-                fontSize: 30,
+                fontSize: 26,
                 fontWeight: FontWeight.bold,
               ),
             );
@@ -58,7 +60,7 @@ class AdminDrawer extends StatelessWidget {
         firstLetter,
         style: const TextStyle(
           color: Color(0xFF1A1F5E),
-          fontSize: 30,
+          fontSize: 26,
           fontWeight: FontWeight.bold,
         ),
       ),
@@ -104,13 +106,13 @@ class AdminDrawer extends StatelessWidget {
               authUser.displayName ?? 'Admin',
             );
 
-            final role = _capitalize(
-              _getText(
-                data,
-                ['role'],
-                'admin',
-              ),
+            final rawRole = _getText(
+              data,
+              ['role'],
+              'admin',
             );
+
+            final role = _capitalize(rawRole);
 
             final email = authUser.email ??
                 _getText(
@@ -136,52 +138,52 @@ class AdminDrawer extends StatelessWidget {
                 : email[0].toUpperCase();
 
             return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               child: Column(
                 children: [
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 10),
 
                   _profileAvatar(
                     profileImageUrl: profileImageUrl,
                     firstLetter: firstLetter,
                   ),
 
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
 
                   Text(
                     name,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 20,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
 
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
 
                   Text(
                     role,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 14,
+                      fontSize: 13,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
 
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
 
                   Text(
                     email,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: Colors.white70,
-                      fontSize: 12,
+                      fontSize: 11,
                     ),
                   ),
 
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 24),
 
                   _drawerButton(
                     icon: Icons.dashboard_outlined,
@@ -195,7 +197,7 @@ class AdminDrawer extends StatelessWidget {
                     },
                   ),
 
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
 
                   _drawerButton(
                     icon: Icons.manage_accounts_outlined,
@@ -209,7 +211,7 @@ class AdminDrawer extends StatelessWidget {
                     },
                   ),
 
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
 
                   _drawerButton(
                     icon: Icons.article_outlined,
@@ -219,6 +221,34 @@ class AdminDrawer extends StatelessWidget {
                       Navigator.pushReplacementNamed(
                         context,
                         '/admin/post-management',
+                      );
+                    },
+                  ),
+
+                  if (rawRole == 'superadmin') ...[
+                    const SizedBox(height: 8),
+                    _drawerButton(
+                      icon: Icons.admin_panel_settings_rounded,
+                      label: 'User Access',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const AdminUserAccessPage()),
+                        );
+                      },
+                    ),
+                  ],
+
+                  const SizedBox(height: 8),
+                  _drawerButton(
+                    icon: Icons.settings_outlined,
+                    label: 'Settings',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const AdminSettingsPage()),
                       );
                     },
                   ),
@@ -238,7 +268,7 @@ class AdminDrawer extends StatelessWidget {
                     },
                   ),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
                 ],
               ),
             );
@@ -256,30 +286,30 @@ class AdminDrawer extends StatelessWidget {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(10),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           color: isLogout ? const Color(0xFFFFEBEE) : Colors.white,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(10),
         ),
         child: Row(
           children: [
             Icon(
               icon,
               color: isLogout ? Colors.red : navy,
-              size: 22,
+              size: 19,
             ),
 
-            const SizedBox(width: 14),
+            const SizedBox(width: 12),
 
             Text(
               label,
               style: TextStyle(
                 color: isLogout ? Colors.red : navy,
                 fontWeight: FontWeight.bold,
-                fontSize: 14,
+                fontSize: 13,
               ),
             ),
           ],

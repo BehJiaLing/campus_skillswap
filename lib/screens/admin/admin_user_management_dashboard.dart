@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import 'admin_drawer.dart';
+import 'admin_audit_track.dart';
 
 class UserManagementPage extends StatelessWidget {
   const UserManagementPage({super.key});
@@ -170,9 +172,30 @@ class UserManagementPage extends StatelessWidget {
                   bgColor: mint,
                   iconColor: green,
                   onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Audit Track coming soon')),
+                    final String? currentUid = FirebaseAuth.instance.currentUser?.uid;
+
+                    final currentProfileDoc = users.firstWhere(
+                          (doc) => doc.id == currentUid,
                     );
+
+                    final profileData = currentProfileDoc.data() as Map<String, dynamic>? ?? {};
+                    final String userRole = profileData['role'] ?? 'user';
+                    final bool hasAuditAccess = profileData['hasAuditAccess'] == true;
+
+                    // Superadmins always pass, regular admins require explicit access flags granted
+                    if (userRole == 'superadmin' || hasAuditAccess) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const AdminAuditTrackPage()),
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Access Denied: You do not have permission to view the Audit Track dashboard.'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
                   },
                 ),
 

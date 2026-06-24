@@ -142,7 +142,7 @@ class _LoginPageState extends State<LoginPage> {
 
       if (!mounted) return;
 
-      if (role == 'admin') {
+      if (role == 'admin'|| role == 'superadmin') {
         Navigator.pushReplacementNamed(context, '/admin/dashboard');
       } else if (profileCompleted == false) {
         Navigator.pushReplacementNamed(context, '/create-profile');
