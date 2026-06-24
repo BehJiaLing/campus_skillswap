@@ -1,67 +1,123 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'admin_user_access.dart';
-import 'admin_settings_page.dart';
 
 class AdminDrawer extends StatelessWidget {
   const AdminDrawer({super.key});
 
   final Color navy = const Color(0xFF1A1F5E);
+  final Color red = const Color(0xFFE53935);
 
-  String _getText(
-      Map<String, dynamic> data,
-      List<String> keys,
-      String fallback,
-      ) {
-    for (final key in keys) {
-      final value = data[key];
-
-      if (value != null && value.toString().trim().isNotEmpty) {
-        return value.toString();
-      }
+  String _getRoleLabel(String role) {
+    if (role == 'superadmin') {
+      return 'Super Admin';
     }
 
-    return fallback;
+    if (role == 'admin') {
+      return 'Admin';
+    }
+
+    return 'User';
   }
 
-  String _capitalize(String text) {
-    if (text.isEmpty) return text;
-    return text[0].toUpperCase() + text.substring(1);
+  Future<void> _logout(BuildContext context) async {
+    await FirebaseAuth.instance.signOut();
+
+    if (!context.mounted) return;
+
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      '/login',
+          (route) => false,
+    );
   }
 
-  Widget _profileAvatar({
-    required String profileImageUrl,
-    required String firstLetter,
+  Widget _drawerButton({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    required String route,
   }) {
-    return CircleAvatar(
-      radius: 38,
-      backgroundColor: Colors.white,
-      child: profileImageUrl.isNotEmpty
-          ? ClipOval(
-        child: Image.network(
-          profileImageUrl,
-          width: 76,
-          height: 76,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            return Text(
-              firstLetter,
-              style: const TextStyle(
-                color: Color(0xFF1A1F5E),
-                fontSize: 26,
-                fontWeight: FontWeight.bold,
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 18,
+        vertical: 5,
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(9),
+        onTap: () {
+          Navigator.pop(context);
+          Navigator.pushReplacementNamed(context, route);
+        },
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 13,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                color: navy,
+                size: 20,
               ),
-            );
-          },
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    color: navy,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-      )
-          : Text(
-        firstLetter,
-        style: const TextStyle(
-          color: Color(0xFF1A1F5E),
-          fontSize: 26,
-          fontWeight: FontWeight.bold,
+      ),
+    );
+  }
+
+  Widget _logoutButton(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(9),
+        onTap: () => _logout(context),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 13,
+          ),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFEBEE),
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.logout,
+                color: red,
+                size: 20,
+              ),
+              const SizedBox(width: 14),
+              Text(
+                'Logout',
+                style: TextStyle(
+                  color: red,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -69,250 +125,142 @@ class AdminDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final authUser = FirebaseAuth.instance.currentUser;
-
-    if (authUser == null) {
-      return Drawer(
-        backgroundColor: navy,
-        child: const Center(
-          child: Text(
-            'No user logged in',
-            style: TextStyle(color: Colors.white),
-          ),
-        ),
-      );
-    }
+    final currentUser = FirebaseAuth.instance.currentUser;
 
     return Drawer(
+      width: 240,
       backgroundColor: navy,
       child: SafeArea(
-        child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+        child: currentUser == null
+            ? Column(
+          children: [
+            const Spacer(),
+            _logoutButton(context),
+          ],
+        )
+            : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
           stream: FirebaseFirestore.instance
               .collection('users')
-              .doc(authUser.uid)
+              .doc(currentUser.uid)
               .snapshots(),
           builder: (context, snapshot) {
             final data = snapshot.data?.data() ?? {};
 
-            final name = _getText(
-              data,
-              [
-                'fullName',
-                'name',
-                'username',
-                'displayName',
-                'studentName',
-              ],
-              authUser.displayName ?? 'Admin',
-            );
+            final name = (data['name'] ??
+                data['fullName'] ??
+                data['username'] ??
+                currentUser.displayName ??
+                'Admin')
+                .toString();
 
-            final rawRole = _getText(
-              data,
-              ['role'],
-              'admin',
-            );
+            final email =
+            (data['email'] ?? currentUser.email ?? '').toString();
 
-            final role = _capitalize(rawRole);
+            final role =
+            (data['role'] ?? 'admin').toString().toLowerCase();
 
-            final email = authUser.email ??
-                _getText(
-                  data,
-                  ['email'],
-                  'admin@email.com',
-                );
+            final isSuperAdmin = role == 'superadmin';
 
-            final profileImageUrl = _getText(
-              data,
-              [
-                'profileImageUrl',
-                'photoUrl',
-                'photoURL',
-                'profileImage',
-                'profilePicture',
-              ],
-              authUser.photoURL ?? '',
-            );
+            return Column(
+              children: [
+                const SizedBox(height: 18),
 
-            final firstLetter = name.isNotEmpty
-                ? name[0].toUpperCase()
-                : email[0].toUpperCase();
-
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              child: Column(
-                children: [
-                  const SizedBox(height: 10),
-
-                  _profileAvatar(
-                    profileImageUrl: profileImageUrl,
-                    firstLetter: firstLetter,
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  Text(
-                    name,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
+                CircleAvatar(
+                  radius: 36,
+                  backgroundColor: Colors.white,
+                  child: Text(
+                    name.isNotEmpty ? name[0].toUpperCase() : '?',
+                    style: TextStyle(
+                      color: navy,
+                      fontSize: 27,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+                ),
 
-                  const SizedBox(height: 2),
+                const SizedBox(height: 12),
 
-                  Text(
-                    role,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
+                Text(
+                  name,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
                   ),
+                ),
 
-                  const SizedBox(height: 2),
+                const SizedBox(height: 4),
 
-                  Text(
+                Text(
+                  _getRoleLabel(role),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(height: 6),
+
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: Text(
                     email,
                     textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: Colors.white70,
                       fontSize: 11,
                     ),
                   ),
+                ),
 
-                  const SizedBox(height: 24),
+                const SizedBox(height: 24),
 
+                _drawerButton(
+                  context: context,
+                  icon: Icons.dashboard_outlined,
+                  title: 'Dashboard',
+                  route: '/admin/dashboard',
+                ),
+
+                _drawerButton(
+                  context: context,
+                  icon: Icons.manage_accounts_outlined,
+                  title: 'User Management',
+                  route: '/admin/user-management',
+                ),
+
+                _drawerButton(
+                  context: context,
+                  icon: Icons.article_outlined,
+                  title: 'Post Management',
+                  route: '/admin/post-management',
+                ),
+
+                if (isSuperAdmin)
                   _drawerButton(
-                    icon: Icons.dashboard_outlined,
-                    label: 'Dashboard',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.pushReplacementNamed(
-                        context,
-                        '/admin/dashboard',
-                      );
-                    },
+                    context: context,
+                    icon: Icons.admin_panel_settings_outlined,
+                    title: 'User Access',
+                    route: '/admin/user-access',
                   ),
 
-                  const SizedBox(height: 8),
+                _drawerButton(
+                  context: context,
+                  icon: Icons.settings_outlined,
+                  title: 'Settings',
+                  route: '/admin/settings',
+                ),
 
-                  _drawerButton(
-                    icon: Icons.manage_accounts_outlined,
-                    label: 'User Management',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.pushReplacementNamed(
-                        context,
-                        '/admin/user-management',
-                      );
-                    },
-                  ),
+                const Spacer(),
 
-                  const SizedBox(height: 8),
-
-                  _drawerButton(
-                    icon: Icons.article_outlined,
-                    label: 'Post Management',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.pushReplacementNamed(
-                        context,
-                        '/admin/post-management',
-                      );
-                    },
-                  ),
-
-                  if (rawRole == 'superadmin') ...[
-                    const SizedBox(height: 8),
-                    _drawerButton(
-                      icon: Icons.admin_panel_settings_rounded,
-                      label: 'User Access',
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const AdminUserAccessPage()),
-                        );
-                      },
-                    ),
-                  ],
-
-                  const SizedBox(height: 8),
-                  _drawerButton(
-                    icon: Icons.settings_outlined,
-                    label: 'Settings',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const AdminSettingsPage()),
-                      );
-                    },
-                  ),
-
-                  const Spacer(),
-
-                  _drawerButton(
-                    icon: Icons.logout,
-                    label: 'Logout',
-                    isLogout: true,
-                    onTap: () async {
-                      await FirebaseAuth.instance.signOut();
-
-                      if (!context.mounted) return;
-
-                      Navigator.pushReplacementNamed(context, '/login');
-                    },
-                  ),
-
-                  const SizedBox(height: 8),
-                ],
-              ),
+                _logoutButton(context),
+              ],
             );
           },
-        ),
-      ),
-    );
-  }
-
-  Widget _drawerButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    bool isLogout = false,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: isLogout ? const Color(0xFFFFEBEE) : Colors.white,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              color: isLogout ? Colors.red : navy,
-              size: 19,
-            ),
-
-            const SizedBox(width: 12),
-
-            Text(
-              label,
-              style: TextStyle(
-                color: isLogout ? Colors.red : navy,
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
-              ),
-            ),
-          ],
         ),
       ),
     );

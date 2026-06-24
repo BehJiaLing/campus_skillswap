@@ -14,6 +14,8 @@ class AdminUsersPage extends StatefulWidget {
 class _AdminUsersPageState extends State<AdminUsersPage> {
   final searchCtrl = TextEditingController();
 
+  Future<DocumentSnapshot<Map<String, dynamic>>>? currentRoleFuture;
+
   String searchText = '';
   String selectedFilter = 'All';
   bool selectionMode = false;
@@ -26,20 +28,24 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
   final Color green = const Color(0xFF4CAF50);
   final Color red = const Color(0xFFE53935);
   final Color orange = const Color(0xFFFF9800);
-
-  final List<String> filters = [
-    'All',
-    'Active',
-    'Deactivated',
-    'Admin',
-    'User',
-  ];
+  final Color purple = const Color(0xFF9C27B0);
 
   @override
   void initState() {
     super.initState();
 
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+
+    if (currentUid != null) {
+      currentRoleFuture = FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUid)
+          .get();
+    }
+
     searchCtrl.addListener(() {
+      if (!mounted) return;
+
       setState(() {
         searchText = searchCtrl.text.toLowerCase();
       });
@@ -50,6 +56,24 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
   void dispose() {
     searchCtrl.dispose();
     super.dispose();
+  }
+
+  List<String> _filters(bool isSuperAdmin) {
+    if (isSuperAdmin) {
+      return [
+        'All',
+        'Active',
+        'Deactivated',
+        'Admin',
+        'User',
+      ];
+    }
+
+    return [
+      'All',
+      'Active',
+      'Deactivated',
+    ];
   }
 
   String _getName(Map<String, dynamic> data) {
@@ -86,6 +110,10 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
     return rawSkills.toString();
   }
 
+  String _getCourse(Map<String, dynamic> data) {
+    return (data['course'] ?? data['education'] ?? 'No course').toString();
+  }
+
   String _getProfileImage(Map<String, dynamic> data) {
     return (data['profileImageUrl'] ??
         data['photoUrl'] ??
@@ -94,17 +122,50 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
         .toString();
   }
 
+  String _roleLabel(String role) {
+    if (role == 'superadmin') {
+      return 'SUPER ADMIN';
+    }
+
+    if (role == 'admin') {
+      return 'ADMIN';
+    }
+
+    return 'USER';
+  }
+
+  Color _roleColor(String role) {
+    if (role == 'superadmin') {
+      return purple;
+    }
+
+    if (role == 'admin') {
+      return navy;
+    }
+
+    return green;
+  }
+
+  int _roleOrder(String role) {
+    if (role == 'superadmin') return 0;
+    if (role == 'admin') return 1;
+    if (role == 'user') return 2;
+    return 3;
+  }
+
   bool _matchesSearch(Map<String, dynamic> data) {
     final name = _getName(data).toLowerCase();
     final email = _getEmail(data).toLowerCase();
     final skills = _getSkills(data).toLowerCase();
+    final course = _getCourse(data).toLowerCase();
 
     return name.contains(searchText) ||
         email.contains(searchText) ||
-        skills.contains(searchText);
+        skills.contains(searchText) ||
+        course.contains(searchText);
   }
 
-  bool _matchesFilter(Map<String, dynamic> data) {
+  bool _matchesFilter(Map<String, dynamic> data, bool isSuperAdmin) {
     final role = _getRole(data);
     final suspended = _isSuspended(data);
 
@@ -116,11 +177,11 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
       return suspended == true;
     }
 
-    if (selectedFilter == 'Admin') {
-      return role == 'admin';
+    if (isSuperAdmin && selectedFilter == 'Admin') {
+      return role == 'admin' || role == 'superadmin';
     }
 
-    if (selectedFilter == 'User') {
+    if (isSuperAdmin && selectedFilter == 'User') {
       return role == 'user';
     }
 
@@ -130,6 +191,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
   Future<void> _toggleSuspend(String uid, bool currentStatus) async {
     await FirebaseFirestore.instance.collection('users').doc(uid).update({
       'suspended': !currentStatus,
+      'updatedAt': FieldValue.serverTimestamp(),
     });
 
     if (!mounted) return;
@@ -146,14 +208,16 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
   Future<void> _deleteUsers(Set<String> uids) async {
     if (uids.isEmpty) return;
 
-    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUid = currentUser?.uid;
+    final currentEmail = currentUser?.email ?? 'Unknown Admin';
 
     final deletableUids = uids.where((uid) => uid != currentUid).toList();
 
     if (deletableUids.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('You cannot delete your own admin account.'),
+          content: Text('You cannot delete your own account.'),
         ),
       );
       return;
@@ -165,7 +229,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
         return AlertDialog(
           title: const Text('Delete Selected Accounts'),
           content: Text(
-            'Are you sure you want to delete ${deletableUids.length} account(s)?\n\nThis will remove the user records from Firestore.',
+            'Are you sure you want to delete ${deletableUids.length} account(s)?\n\nThis will remove the user records from Firestore and save a delete history record.',
           ),
           actions: [
             TextButton(
@@ -194,8 +258,27 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
     final batch = FirebaseFirestore.instance.batch();
 
     for (final uid in deletableUids) {
-      final ref = FirebaseFirestore.instance.collection('users').doc(uid);
-      batch.delete(ref);
+      final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+      final userDoc = await userRef.get();
+      final userData = userDoc.data() ?? {};
+
+      final historyRef =
+      FirebaseFirestore.instance.collection('deleted_users_history').doc();
+
+      batch.set(historyRef, {
+        'deletedUserUid': uid,
+        'deletedUserName': _getName(userData),
+        'deletedUserEmail': _getEmail(userData),
+        'deletedUserCourse': _getCourse(userData),
+        'deletedUserSkills': _getSkills(userData),
+        'deletedUserRole': _getRole(userData),
+        'deletedByUid': currentUid,
+        'deletedByEmail': currentEmail,
+        'deletedAt': FieldValue.serverTimestamp(),
+        'isRestored': false,
+      });
+
+      batch.delete(userRef);
     }
 
     await batch.commit();
@@ -224,7 +307,9 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
     });
   }
 
-  void _selectAllVisible(List<QueryDocumentSnapshot> docs) {
+  void _selectAllVisible(
+      List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+      ) {
     setState(() {
       for (final doc in docs) {
         selectedUsers.add(doc.id);
@@ -262,7 +347,9 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
     );
   }
 
-  Widget _selectionBar(List<QueryDocumentSnapshot> visibleDocs) {
+  Widget _selectionBar(
+      List<QueryDocumentSnapshot<Map<String, dynamic>>> visibleDocs,
+      ) {
     if (!selectionMode) return const SizedBox.shrink();
 
     return Container(
@@ -479,10 +566,15 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
     );
   }
 
-  Widget _userCard(String uid, Map<String, dynamic> data) {
+  Widget _userCard(
+      String uid,
+      Map<String, dynamic> data,
+      bool isSuperAdmin,
+      ) {
     final name = _getName(data);
     final email = _getEmail(data);
     final skills = _getSkills(data);
+    final course = _getCourse(data);
     final role = _getRole(data);
     final suspended = _isSuspended(data);
     final profileImageUrl = _getProfileImage(data);
@@ -562,6 +654,15 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                   const SizedBox(height: 4),
 
                   Text(
+                    course,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+
+                  const SizedBox(height: 2),
+
+                  Text(
                     skills,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -574,16 +675,17 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  role.toUpperCase(),
-                  style: TextStyle(
-                    color: role == 'admin' ? navy : green,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 11,
+                if (isSuperAdmin) ...[
+                  Text(
+                    _roleLabel(role),
+                    style: TextStyle(
+                      color: _roleColor(role),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                    ),
                   ),
-                ),
-
-                const SizedBox(height: 6),
+                  const SizedBox(height: 6),
+                ],
 
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -629,7 +731,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
       child: TextField(
         controller: searchCtrl,
         decoration: InputDecoration(
-          hintText: 'Search by name, email, skill...',
+          hintText: 'Search by name, email, skill, course...',
           prefixIcon: const Icon(Icons.search),
           suffixIcon: searchCtrl.text.isNotEmpty
               ? IconButton(
@@ -649,25 +751,44 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
     );
   }
 
-  Widget _filterRow() {
+  Widget _filterRow(bool isSuperAdmin) {
+    final filterList = _filters(isSuperAdmin);
+
+    if (!filterList.contains(selectedFilter)) {
+      selectedFilter = 'All';
+    }
+
     return SizedBox(
       height: 46,
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         scrollDirection: Axis.horizontal,
-        itemCount: filters.length,
+        itemCount: filterList.length,
         separatorBuilder: (context, index) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
-          return _filterChip(filters[index]);
+          return _filterChip(filterList[index]);
         },
       ),
     );
   }
 
+  Query<Map<String, dynamic>> _userQuery(bool isSuperAdmin) {
+    if (isSuperAdmin) {
+      return FirebaseFirestore.instance.collection('users');
+    }
+
+    return FirebaseFirestore.instance
+        .collection('users')
+        .where('role', isEqualTo: 'user');
+  }
+
   @override
   Widget build(BuildContext context) {
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+
     return Scaffold(
       backgroundColor: bg,
+
       appBar: AppBar(
         title: const Text('User Management'),
         backgroundColor: navy,
@@ -694,71 +815,126 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
         ],
       ),
 
-      body: Column(
-        children: [
-          _searchBox(),
+      body: currentUid == null || currentRoleFuture == null
+          ? const Center(
+        child: Text('User not logged in.'),
+      )
+          : FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+        future: currentRoleFuture,
+        builder: (context, roleSnapshot) {
+          if (roleSnapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          }
 
-          _filterRow(),
+          if (roleSnapshot.hasError) {
+            return Center(
+              child: Text('Error: ${roleSnapshot.error}'),
+            );
+          }
 
-          const SizedBox(height: 10),
+          final currentUserData = roleSnapshot.data?.data() ?? {};
+          final currentRole = _getRole(currentUserData);
+          final isSuperAdmin = currentRole == 'superadmin';
 
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('users')
-                  .orderBy('email')
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(),
-                  );
-                }
+          return Column(
+            children: [
+              _searchBox(),
 
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text('Error: ${snapshot.error}'),
-                  );
-                }
+              _filterRow(isSuperAdmin),
 
-                final docs = snapshot.data?.docs ?? [];
+              const SizedBox(height: 10),
 
-                final filteredDocs = docs.where((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  return _matchesSearch(data) && _matchesFilter(data);
-                }).toList();
+              Expanded(
+                child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: _userQuery(isSuperAdmin).snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState ==
+                        ConnectionState.waiting) {
+                      return const Center(
+                        child: CircularProgressIndicator(),
+                      );
+                    }
 
-                if (filteredDocs.isEmpty) {
-                  return const Center(
-                    child: Text('No users found'),
-                  );
-                }
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Text('Error: ${snapshot.error}'),
+                      );
+                    }
 
-                return Column(
-                  children: [
-                    _selectionBar(filteredDocs),
+                    final docs = snapshot.data?.docs ?? [];
 
-                    Expanded(
-                      child: ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                        itemCount: filteredDocs.length,
-                        separatorBuilder: (context, index) {
-                          return const SizedBox(height: 10);
-                        },
-                        itemBuilder: (context, index) {
-                          final doc = filteredDocs[index];
-                          final data = doc.data() as Map<String, dynamic>;
+                    final filteredDocs = docs.where((doc) {
+                      final data = doc.data();
 
-                          return _userCard(doc.id, data);
-                        },
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
-        ],
+                      if (!isSuperAdmin && _getRole(data) != 'user') {
+                        return false;
+                      }
+
+                      return _matchesSearch(data) &&
+                          _matchesFilter(data, isSuperAdmin);
+                    }).toList()
+                      ..sort((a, b) {
+                        final aData = a.data();
+                        final bData = b.data();
+
+                        final roleCompare =
+                        _roleOrder(_getRole(aData)).compareTo(
+                          _roleOrder(_getRole(bData)),
+                        );
+
+                        if (roleCompare != 0) {
+                          return roleCompare;
+                        }
+
+                        return _getName(aData).toLowerCase().compareTo(
+                          _getName(bData).toLowerCase(),
+                        );
+                      });
+
+                    if (filteredDocs.isEmpty) {
+                      return const Center(
+                        child: Text('No users found'),
+                      );
+                    }
+
+                    return Column(
+                      children: [
+                        _selectionBar(filteredDocs),
+
+                        Expanded(
+                          child: ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(
+                              16,
+                              0,
+                              16,
+                              16,
+                            ),
+                            itemCount: filteredDocs.length,
+                            separatorBuilder: (context, index) {
+                              return const SizedBox(height: 10);
+                            },
+                            itemBuilder: (context, index) {
+                              final doc = filteredDocs[index];
+                              final data = doc.data();
+
+                              return _userCard(
+                                doc.id,
+                                data,
+                                isSuperAdmin,
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class AdminEditUserPage extends StatefulWidget {
   final String uid;
@@ -17,23 +18,72 @@ class AdminEditUserPage extends StatefulWidget {
 
 class _AdminEditUserPageState extends State<AdminEditUserPage> {
   final nameCtrl = TextEditingController();
-  final eduCtrl = TextEditingController();
-  final schoolCtrl = TextEditingController();
+  final customCourseCtrl = TextEditingController();
   final skillCtrl = TextEditingController();
 
-  String role = 'user';
+  String? selectedCourse;
+  String selectedRole = 'user';
+
   bool loading = false;
+  bool checkingRole = true;
+  bool isSuperAdmin = false;
+  bool targetIsSuperAdmin = false;
 
   final Color navy = const Color(0xFF1A1F5E);
   final Color bg = const Color(0xFFF5F5FA);
 
+  final List<String> courseOptions = [
+    'Bachelor of Computer Science',
+    'Bachelor of Information Technology',
+    'Bachelor of Software Engineering',
+    'Bachelor of Business Administration',
+    'Bachelor of Accounting and Finance',
+    'Bachelor of Mass Communication',
+    'Bachelor of Psychology',
+    'Bachelor of Biotechnology',
+
+    'Diploma in Computer Science',
+    'Diploma in Information Technology',
+    'Diploma in Business',
+    'Diploma in Accounting',
+    'Diploma in Mass Communication',
+    'Diploma in Hotel Management',
+    'Diploma in Culinary Arts',
+    'Diploma in Interior Design',
+    'Diploma in Digital Media',
+    'Diploma in Mechanical Engineering',
+    'Diploma in Civil Engineering',
+
+    'Foundation in Science',
+    'Foundation in Business',
+    'Foundation in Arts',
+    'A-Level',
+
+    'Other',
+  ];
+
   @override
   void initState() {
     super.initState();
+    _loadTargetUserData();
+    _checkCurrentAdminRole();
+  }
 
+  void _loadTargetUserData() {
     nameCtrl.text = widget.userData['name']?.toString() ?? '';
-    eduCtrl.text = widget.userData['education']?.toString() ?? '';
-    schoolCtrl.text = widget.userData['school']?.toString() ?? '';
+
+    final savedCourse = widget.userData['course']?.toString() ??
+        widget.userData['education']?.toString() ??
+        '';
+
+    if (savedCourse.isNotEmpty) {
+      if (courseOptions.contains(savedCourse)) {
+        selectedCourse = savedCourse;
+      } else {
+        courseOptions.insert(courseOptions.length - 1, savedCourse);
+        selectedCourse = savedCourse;
+      }
+    }
 
     final skills = widget.userData['skills'];
 
@@ -43,34 +93,120 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
       skillCtrl.text = skills?.toString() ?? '';
     }
 
-    final savedRole =
-    (widget.userData['role'] ?? 'user').toString().toLowerCase();
+    final role = widget.userData['role']?.toString().toLowerCase() ?? 'user';
 
-    if (savedRole == 'admin') {
-      role = 'admin';
+    if (role == 'superadmin') {
+      selectedRole = 'superadmin';
+      targetIsSuperAdmin = true;
+    } else if (role == 'admin') {
+      selectedRole = 'admin';
+      targetIsSuperAdmin = false;
     } else {
-      role = 'user';
+      selectedRole = 'user';
+      targetIsSuperAdmin = false;
+    }
+  }
+
+  Future<void> _checkCurrentAdminRole() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+
+    if (currentUser == null) {
+      if (!mounted) return;
+
+      setState(() {
+        checkingRole = false;
+        isSuperAdmin = false;
+      });
+
+      return;
+    }
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser.uid)
+          .get();
+
+      final data = doc.data() ?? {};
+      final currentRole = data['role']?.toString().toLowerCase() ?? 'user';
+
+      if (!mounted) return;
+
+      setState(() {
+        isSuperAdmin = currentRole == 'superadmin';
+        checkingRole = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        checkingRole = false;
+        isSuperAdmin = false;
+      });
     }
   }
 
   Future<void> _saveProfile() async {
-    setState(() => loading = true);
+    final name = nameCtrl.text.trim();
+    final skillsText = skillCtrl.text.trim();
+
+    final course = selectedCourse == 'Other'
+        ? customCourseCtrl.text.trim()
+        : selectedCourse?.trim();
+
+    if (name.isEmpty) {
+      showMessage('Name cannot be empty.');
+      return;
+    }
+
+    if (course == null || course.isEmpty) {
+      showMessage('Please select or enter a course.');
+      return;
+    }
+
+    if (skillsText.isEmpty) {
+      showMessage('Please enter at least one skill.');
+      return;
+    }
+
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+
+    if (currentUid == widget.uid && selectedRole != 'superadmin') {
+      showMessage('You cannot remove your own superadmin role.');
+      return;
+    }
+
+    setState(() {
+      loading = true;
+    });
 
     try {
+      final skills = skillsText
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+
+      final Map<String, dynamic> updateData = {
+        'name': name,
+        'course': course,
+        'school': 'INTI College',
+        'education': FieldValue.delete(),
+        'skills': skills,
+        'profileCompleted': true,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      // Only superadmin can change role.
+      // But superadmin accounts cannot be changed/demoted here.
+      if (isSuperAdmin && !targetIsSuperAdmin) {
+        updateData['role'] = selectedRole;
+      }
+
       await FirebaseFirestore.instance
           .collection('users')
           .doc(widget.uid)
-          .update({
-        'name': nameCtrl.text.trim(),
-        'education': eduCtrl.text.trim(),
-        'school': schoolCtrl.text.trim(),
-        'skills': skillCtrl.text
-            .split(',')
-            .map((e) => e.trim())
-            .where((e) => e.isNotEmpty)
-            .toList(),
-        'role': role,
-      });
+          .update(updateData);
 
       if (!mounted) return;
 
@@ -89,18 +225,25 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
           content: Text('Failed to update profile: $e'),
         ),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          loading = false;
+        });
+      }
     }
+  }
 
-    if (mounted) {
-      setState(() => loading = false);
-    }
+  void showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   @override
   void dispose() {
     nameCtrl.dispose();
-    eduCtrl.dispose();
-    schoolCtrl.dispose();
+    customCourseCtrl.dispose();
     skillCtrl.dispose();
     super.dispose();
   }
@@ -127,6 +270,95 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
     );
   }
 
+  Widget _courseDropdown() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: DropdownButtonFormField<String>(
+        initialValue: selectedCourse,
+        isExpanded: true,
+        decoration: InputDecoration(
+          labelText: 'Course',
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        items: courseOptions.map((course) {
+          return DropdownMenuItem<String>(
+            value: course,
+            child: Text(
+              course,
+              overflow: TextOverflow.ellipsis,
+            ),
+          );
+        }).toList(),
+        onChanged: (value) {
+          setState(() {
+            selectedCourse = value;
+
+            if (value != 'Other') {
+              customCourseCtrl.clear();
+            }
+          });
+        },
+      ),
+    );
+  }
+
+  Widget _roleDropdown() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: DropdownButtonFormField<String>(
+        initialValue: selectedRole,
+        decoration: InputDecoration(
+          labelText: 'Role',
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        items: const [
+          DropdownMenuItem(
+            value: 'user',
+            child: Text('User'),
+          ),
+          DropdownMenuItem(
+            value: 'admin',
+            child: Text('Admin'),
+          ),
+        ],
+        onChanged: (value) {
+          if (value == null) return;
+
+          setState(() {
+            selectedRole = value;
+          });
+        },
+      ),
+    );
+  }
+
+  Widget _lockedSuperAdminRoleBox() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: TextField(
+        enabled: false,
+        controller: TextEditingController(text: 'Super Admin'),
+        decoration: InputDecoration(
+          labelText: 'Role',
+          filled: true,
+          fillColor: Colors.grey.shade200,
+          suffixIcon: const Icon(Icons.lock_outline),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final email = widget.userData['email']?.toString() ?? 'No Email';
@@ -138,7 +370,11 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
         backgroundColor: navy,
         foregroundColor: Colors.white,
       ),
-      body: SingleChildScrollView(
+      body: checkingRole
+          ? const Center(
+        child: CircularProgressIndicator(),
+      )
+          : SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
@@ -174,15 +410,13 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
               controller: nameCtrl,
             ),
 
-            _input(
-              label: 'Education',
-              controller: eduCtrl,
-            ),
+            _courseDropdown(),
 
-            _input(
-              label: 'School / University',
-              controller: schoolCtrl,
-            ),
+            if (selectedCourse == 'Other')
+              _input(
+                label: 'Enter Course',
+                controller: customCourseCtrl,
+              ),
 
             _input(
               label: 'Skills',
@@ -190,37 +424,10 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
               maxLines: 2,
             ),
 
-            Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: DropdownButtonFormField<String>(
-                initialValue: role,
-                decoration: InputDecoration(
-                  labelText: 'Role',
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                items: const [
-                  DropdownMenuItem(
-                    value: 'user',
-                    child: Text('User'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'admin',
-                    child: Text('Admin'),
-                  ),
-                ],
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() {
-                      role = value;
-                    });
-                  }
-                },
-              ),
-            ),
+            if (isSuperAdmin && targetIsSuperAdmin)
+              _lockedSuperAdminRoleBox()
+            else if (isSuperAdmin)
+              _roleDropdown(),
 
             const SizedBox(height: 14),
 
