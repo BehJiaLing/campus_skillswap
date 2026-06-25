@@ -19,6 +19,11 @@ class UserManagementPage extends StatelessWidget {
   final Color mint = const Color(0xFFE4F8F0);
   final Color red = const Color(0xFFE53935);
 
+  final Color darkBg = const Color(0xFF111827);
+  final Color darkCard = const Color(0xFF1F2937);
+  final Color darkBorder = const Color(0xFF374151);
+  final Color darkInner = const Color(0xFF111827);
+
   String _getSkills(Map<String, dynamic> data) {
     final rawSkills = data['skills'];
 
@@ -63,7 +68,8 @@ class UserManagementPage extends StatelessWidget {
     }
 
     final profileData = adminDoc.data()!;
-    final userRole = profileData['role']?.toString().toLowerCase() ?? 'user';
+    final userRole =
+        profileData['role']?.toString().trim().toLowerCase() ?? 'user';
     final hasAuditAccess = profileData['hasAuditAccess'] == true;
 
     if (userRole == 'superadmin' || hasAuditAccess) {
@@ -85,18 +91,25 @@ class UserManagementPage extends StatelessWidget {
     }
   }
 
+  bool _isSuspended(Map<String, dynamic> data) {
+    return data['suspended'] == true || data['banned'] == true;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: bg,
-      drawer: const AdminDrawer(),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    final pageBg = isDark ? darkBg : bg;
+    final textColor = isDark ? Colors.white : const Color(0xFF1F223D);
+
+    return Scaffold(
+      backgroundColor: pageBg,
+      drawer: const AdminDrawer(),
       appBar: AppBar(
         title: const Text('User Management'),
-        backgroundColor: navy,
+        backgroundColor: isDark ? darkBg : navy,
         foregroundColor: Colors.white,
       ),
-
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('users')
@@ -111,7 +124,12 @@ class UserManagementPage extends StatelessWidget {
 
           if (userSnapshot.hasError) {
             return Center(
-              child: Text('Error: ${userSnapshot.error}'),
+              child: Text(
+                'Error: ${userSnapshot.error}',
+                style: TextStyle(
+                  color: textColor,
+                ),
+              ),
             );
           }
 
@@ -121,12 +139,12 @@ class UserManagementPage extends StatelessWidget {
 
           final activeUsers = users.where((doc) {
             final data = doc.data() as Map<String, dynamic>;
-            return data['suspended'] != true;
+            return !_isSuspended(data);
           }).length;
 
           final suspendedUsers = users.where((doc) {
             final data = doc.data() as Map<String, dynamic>;
-            return data['suspended'] == true;
+            return _isSuspended(data);
           }).length;
 
           final recentUsers = users.take(3).toList();
@@ -136,12 +154,12 @@ class UserManagementPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Overview',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
-                    color: Color(0xFF1F223D),
+                    color: textColor,
                   ),
                 ),
 
@@ -151,6 +169,7 @@ class UserManagementPage extends StatelessWidget {
                   totalUsers: totalUsers,
                   activeUsers: activeUsers,
                   suspendedUsers: suspendedUsers,
+                  isDark: isDark,
                 ),
 
                 const SizedBox(height: 12),
@@ -161,7 +180,8 @@ class UserManagementPage extends StatelessWidget {
                       title: 'Total',
                       value: '$totalUsers',
                       icon: Icons.people_outline,
-                      color: navy,
+                      color: isDark ? Colors.white : navy,
+                      isDark: isDark,
                     ),
 
                     const SizedBox(width: 10),
@@ -171,6 +191,7 @@ class UserManagementPage extends StatelessWidget {
                       value: '$activeUsers',
                       icon: Icons.check_circle_outline,
                       color: green,
+                      isDark: isDark,
                     ),
 
                     const SizedBox(width: 10),
@@ -180,18 +201,19 @@ class UserManagementPage extends StatelessWidget {
                       value: '$suspendedUsers',
                       icon: Icons.block_outlined,
                       color: red,
+                      isDark: isDark,
                     ),
                   ],
                 ),
 
                 const SizedBox(height: 26),
 
-                const Text(
+                Text(
                   'Quick Actions',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
-                    color: Color(0xFF1F223D),
+                    color: textColor,
                   ),
                 ),
 
@@ -204,6 +226,7 @@ class UserManagementPage extends StatelessWidget {
                   subtitle: 'View, edit & suspend users',
                   bgColor: purple,
                   iconColor: purpleDeep,
+                  isDark: isDark,
                   onTap: () {
                     Navigator.pushNamed(context, '/admin/users');
                   },
@@ -218,6 +241,7 @@ class UserManagementPage extends StatelessWidget {
                   subtitle: 'Track admin activity and deleted user records',
                   bgColor: mint,
                   iconColor: green,
+                  isDark: isDark,
                   onTap: () {
                     _openAuditTrack(context);
                   },
@@ -228,12 +252,12 @@ class UserManagementPage extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
+                    Text(
                       'Recent Users',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
-                        color: Color(0xFF1F223D),
+                        color: textColor,
                       ),
                     ),
 
@@ -244,7 +268,7 @@ class UserManagementPage extends StatelessWidget {
                       child: Text(
                         'See all',
                         style: TextStyle(
-                          color: navy,
+                          color: isDark ? Colors.white : navy,
                         ),
                       ),
                     ),
@@ -252,13 +276,13 @@ class UserManagementPage extends StatelessWidget {
                 ),
 
                 if (recentUsers.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 20),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 20),
                     child: Center(
                       child: Text(
                         'No users found',
                         style: TextStyle(
-                          color: Colors.grey,
+                          color: isDark ? Colors.white60 : Colors.grey,
                         ),
                       ),
                     ),
@@ -266,7 +290,10 @@ class UserManagementPage extends StatelessWidget {
                 else
                   ...recentUsers.map((doc) {
                     final data = doc.data() as Map<String, dynamic>;
-                    return _recentUserTile(data);
+                    return _recentUserTile(
+                      data,
+                      isDark: isDark,
+                    );
                   }),
               ],
             ),
@@ -280,39 +307,46 @@ class UserManagementPage extends StatelessWidget {
     required int totalUsers,
     required int activeUsers,
     required int suspendedUsers,
+    required bool isDark,
   }) {
-    final int activePercent = totalUsers == 0
-        ? 0
-        : ((activeUsers / totalUsers) * 100).round();
+    final int activePercent =
+    totalUsers == 0 ? 0 : ((activeUsers / totalUsers) * 100).round();
+
+    final cardColor = isDark ? darkCard : Colors.white;
+    final lineColor = isDark ? darkBorder : border;
+    final textColor = isDark ? Colors.white : const Color(0xFF1F223D);
+    final subTextColor = isDark ? Colors.white60 : Colors.grey;
+    final innerColor = isDark ? darkInner : bg;
+    final trackColor = isDark ? darkBorder : const Color(0xFFEDEDF6);
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardColor,
         border: Border.all(
-          color: border,
+          color: lineColor,
         ),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Account Health',
             style: TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 15,
-              color: Color(0xFF1F223D),
+              color: textColor,
             ),
           ),
 
           const SizedBox(height: 4),
 
-          const Text(
+          Text(
             'Active and suspended user distribution',
             style: TextStyle(
-              color: Colors.grey,
+              color: subTextColor,
               fontSize: 12,
             ),
           ),
@@ -335,7 +369,7 @@ class UserManagementPage extends StatelessWidget {
                         suspended: suspendedUsers,
                         activeColor: green,
                         suspendedColor: red,
-                        trackColor: const Color(0xFFEDEDF6),
+                        trackColor: trackColor,
                       ),
                     ),
 
@@ -345,16 +379,16 @@ class UserManagementPage extends StatelessWidget {
                         Text(
                           '$activePercent%',
                           style: TextStyle(
-                            color: navy,
+                            color: isDark ? Colors.white : navy,
                             fontWeight: FontWeight.bold,
                             fontSize: 24,
                           ),
                         ),
 
-                        const Text(
+                        Text(
                           'Active',
                           style: TextStyle(
-                            color: Colors.grey,
+                            color: subTextColor,
                             fontSize: 12,
                           ),
                         ),
@@ -372,16 +406,18 @@ class UserManagementPage extends StatelessWidget {
                   children: [
                     _legendRow(
                       color: green,
-                      title: 'Active Users',
+                      title: 'Active Accounts',
                       value: activeUsers,
+                      isDark: isDark,
                     ),
 
                     const SizedBox(height: 14),
 
                     _legendRow(
                       color: red,
-                      title: 'Suspended Users',
+                      title: 'Suspended Accounts',
                       value: suspendedUsers,
+                      isDark: isDark,
                     ),
 
                     const SizedBox(height: 18),
@@ -390,15 +426,18 @@ class UserManagementPage extends StatelessWidget {
                       width: double.infinity,
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF5F5FA),
+                        color: innerColor,
                         borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: lineColor,
+                        ),
                       ),
                       child: Text(
                         totalUsers == 0
                             ? 'No user records yet'
-                            : '$activeUsers out of $totalUsers users are active',
-                        style: const TextStyle(
-                          color: Color(0xFF1F223D),
+                            : '$activeUsers out of $totalUsers accounts are active',
+                        style: TextStyle(
+                          color: textColor,
                           fontWeight: FontWeight.w600,
                           fontSize: 12,
                         ),
@@ -418,7 +457,10 @@ class UserManagementPage extends StatelessWidget {
     required Color color,
     required String title,
     required int value,
+    required bool isDark,
   }) {
+    final textColor = isDark ? Colors.white : const Color(0xFF1F223D);
+
     return Row(
       children: [
         Container(
@@ -435,8 +477,8 @@ class UserManagementPage extends StatelessWidget {
         Expanded(
           child: Text(
             title,
-            style: const TextStyle(
-              color: Color(0xFF1F223D),
+            style: TextStyle(
+              color: textColor,
               fontSize: 13,
               fontWeight: FontWeight.w600,
             ),
@@ -460,7 +502,12 @@ class UserManagementPage extends StatelessWidget {
     required String value,
     required IconData icon,
     required Color color,
+    required bool isDark,
   }) {
+    final cardColor = isDark ? darkCard : Colors.white;
+    final lineColor = isDark ? darkBorder : border;
+    final subTextColor = isDark ? Colors.white60 : Colors.grey;
+
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(
@@ -468,9 +515,9 @@ class UserManagementPage extends StatelessWidget {
           horizontal: 10,
         ),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: cardColor,
           border: Border.all(
-            color: border,
+            color: lineColor,
           ),
           borderRadius: BorderRadius.circular(14),
         ),
@@ -498,8 +545,8 @@ class UserManagementPage extends StatelessWidget {
             Text(
               title,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Colors.grey,
+              style: TextStyle(
+                color: subTextColor,
                 fontSize: 12,
               ),
             ),
@@ -516,16 +563,23 @@ class UserManagementPage extends StatelessWidget {
         required String subtitle,
         required Color bgColor,
         required Color iconColor,
+        required bool isDark,
         required VoidCallback onTap,
       }) {
+    final cardColor = isDark ? darkCard : Colors.white;
+    final lineColor = isDark ? darkBorder : border;
+    final textColor = isDark ? Colors.white : const Color(0xFF1F223D);
+    final subTextColor = isDark ? Colors.white60 : Colors.grey;
+    final iconBg = isDark ? bgColor.withValues(alpha: 0.18) : bgColor;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: cardColor,
           border: Border.all(
-            color: border,
+            color: lineColor,
           ),
           borderRadius: BorderRadius.circular(12),
         ),
@@ -535,7 +589,7 @@ class UserManagementPage extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: bgColor,
+                color: iconBg,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
@@ -552,10 +606,10 @@ class UserManagementPage extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
-                      color: Color(0xFF1F223D),
+                      color: textColor,
                     ),
                   ),
 
@@ -563,8 +617,8 @@ class UserManagementPage extends StatelessWidget {
 
                   Text(
                     subtitle,
-                    style: const TextStyle(
-                      color: Colors.grey,
+                    style: TextStyle(
+                      color: subTextColor,
                       fontSize: 12,
                     ),
                   ),
@@ -572,9 +626,9 @@ class UserManagementPage extends StatelessWidget {
               ),
             ),
 
-            const Icon(
+            Icon(
               Icons.chevron_right,
-              color: Colors.grey,
+              color: subTextColor,
             ),
           ],
         ),
@@ -582,43 +636,47 @@ class UserManagementPage extends StatelessWidget {
     );
   }
 
-  Widget _recentUserTile(Map<String, dynamic> data) {
-    final name = data['name'] ?? 'No Name';
+  Widget _recentUserTile(
+      Map<String, dynamic> data, {
+        required bool isDark,
+      }) {
+    final name = data['name'] ?? data['fullName'] ?? 'No Name';
     final skills = _getSkills(data);
-    final suspended = data['suspended'] ?? false;
+    final suspended = _isSuspended(data);
+
+    final textColor = isDark ? Colors.white : const Color(0xFF1F223D);
+    final subTextColor = isDark ? Colors.white60 : Colors.grey;
+    final avatarBg = isDark ? const Color(0xFF312E81) : purple;
+    final avatarText = isDark ? Colors.white : purpleDeep;
 
     return ListTile(
       contentPadding: EdgeInsets.zero,
-
       leading: CircleAvatar(
-        backgroundColor: purple,
+        backgroundColor: avatarBg,
         child: Text(
           name.toString().isNotEmpty
               ? name.toString()[0].toUpperCase()
               : '?',
-          style: const TextStyle(
-            color: Color(0xFF7C5CBF),
+          style: TextStyle(
+            color: avatarText,
             fontWeight: FontWeight.bold,
           ),
         ),
       ),
-
       title: Text(
         name.toString(),
-        style: const TextStyle(
+        style: TextStyle(
           fontWeight: FontWeight.bold,
-          color: Color(0xFF1F223D),
+          color: textColor,
         ),
       ),
-
       subtitle: Text(
         skills,
-        style: const TextStyle(
-          color: Colors.grey,
+        style: TextStyle(
+          color: subTextColor,
           fontSize: 12,
         ),
       ),
-
       trailing: Container(
         padding: const EdgeInsets.symmetric(
           horizontal: 8,
@@ -735,6 +793,7 @@ class DonutChartPainter extends CustomPainter {
   bool shouldRepaint(covariant DonutChartPainter oldDelegate) {
     return oldDelegate.total != total ||
         oldDelegate.active != active ||
-        oldDelegate.suspended != suspended;
+        oldDelegate.suspended != suspended ||
+        oldDelegate.trackColor != trackColor;
   }
 }

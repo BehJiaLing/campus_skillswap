@@ -6,7 +6,10 @@ class AdminDrawer extends StatelessWidget {
   const AdminDrawer({super.key});
 
   final Color navy = const Color(0xFF1A1F5E);
-  final Color red = const Color(0xFFE53935);
+  final Color lightPurple = const Color(0xFFE8E4F8);
+  final Color darkBg = const Color(0xFF111827);
+  final Color darkCard = const Color(0xFF1F2937);
+  final Color darkActive = const Color(0xFF312E81);
 
   String _getRoleLabel(String role) {
     if (role == 'superadmin') {
@@ -20,16 +23,9 @@ class AdminDrawer extends StatelessWidget {
     return 'User';
   }
 
-  Future<void> _logout(BuildContext context) async {
-    await FirebaseAuth.instance.signOut();
-
-    if (!context.mounted) return;
-
-    Navigator.pushNamedAndRemoveUntil(
-      context,
-      '/login',
-          (route) => false,
-    );
+  bool _isCurrentRoute(BuildContext context, String route) {
+    final currentRoute = ModalRoute.of(context)?.settings.name;
+    return currentRoute == route;
   }
 
   Widget _drawerButton({
@@ -37,7 +33,21 @@ class AdminDrawer extends StatelessWidget {
     required IconData icon,
     required String title,
     required String route,
+    required bool isDark,
   }) {
+    final isActive = _isCurrentRoute(context, route);
+
+    final Color buttonColor = isDark
+        ? isActive
+        ? darkActive
+        : darkCard
+        : isActive
+        ? lightPurple
+        : Colors.white;
+
+    final Color iconColor = isDark ? Colors.white : navy;
+    final Color textColor = isDark ? Colors.white : navy;
+
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: 18,
@@ -47,6 +57,9 @@ class AdminDrawer extends StatelessWidget {
         borderRadius: BorderRadius.circular(9),
         onTap: () {
           Navigator.pop(context);
+
+          if (isActive) return;
+
           Navigator.pushReplacementNamed(context, route);
         },
         child: Container(
@@ -56,66 +69,41 @@ class AdminDrawer extends StatelessWidget {
             vertical: 13,
           ),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: buttonColor,
             borderRadius: BorderRadius.circular(9),
+            border: isDark
+                ? Border.all(
+              color: Colors.white.withValues(alpha: 0.08),
+            )
+                : null,
           ),
           child: Row(
             children: [
               Icon(
                 icon,
-                color: navy,
+                color: iconColor,
                 size: 20,
               ),
+
               const SizedBox(width: 14),
+
               Expanded(
                 child: Text(
                   title,
                   style: TextStyle(
-                    color: navy,
+                    color: textColor,
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
                   ),
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
-  Widget _logoutButton(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(9),
-        onTap: () => _logout(context),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: 13,
-          ),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFEBEE),
-            borderRadius: BorderRadius.circular(9),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                Icons.logout,
-                color: red,
-                size: 20,
-              ),
-              const SizedBox(width: 14),
-              Text(
-                'Logout',
-                style: TextStyle(
-                  color: red,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
+              if (isActive)
+                Icon(
+                  Icons.circle,
+                  size: 8,
+                  color: isDark ? Colors.white : navy,
                 ),
-              ),
             ],
           ),
         ),
@@ -126,17 +114,28 @@ class AdminDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final currentUser = FirebaseAuth.instance.currentUser;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final Color drawerBg = isDark ? darkBg : navy;
+    final Color avatarBg = isDark ? darkActive : Colors.white;
+    final Color avatarTextColor = isDark ? Colors.white : navy;
+    final Color mainTextColor = Colors.white;
+    final Color subTextColor = Colors.white70;
+    final Color footerColor = Colors.white54;
 
     return Drawer(
       width: 240,
-      backgroundColor: navy,
+      backgroundColor: drawerBg,
       child: SafeArea(
         child: currentUser == null
-            ? Column(
-          children: [
-            const Spacer(),
-            _logoutButton(context),
-          ],
+            ? const Center(
+          child: Text(
+            'No admin logged in',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         )
             : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
           stream: FirebaseFirestore.instance
@@ -167,11 +166,11 @@ class AdminDrawer extends StatelessWidget {
 
                 CircleAvatar(
                   radius: 36,
-                  backgroundColor: Colors.white,
+                  backgroundColor: avatarBg,
                   child: Text(
                     name.isNotEmpty ? name[0].toUpperCase() : '?',
                     style: TextStyle(
-                      color: navy,
+                      color: avatarTextColor,
                       fontSize: 27,
                       fontWeight: FontWeight.bold,
                     ),
@@ -180,13 +179,18 @@ class AdminDrawer extends StatelessWidget {
 
                 const SizedBox(height: 12),
 
-                Text(
-                  name,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    name,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: mainTextColor,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
 
@@ -194,8 +198,8 @@ class AdminDrawer extends StatelessWidget {
 
                 Text(
                   _getRoleLabel(role),
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: mainTextColor,
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
                   ),
@@ -210,8 +214,8 @@ class AdminDrawer extends StatelessWidget {
                     textAlign: TextAlign.center,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white70,
+                    style: TextStyle(
+                      color: subTextColor,
                       fontSize: 11,
                     ),
                   ),
@@ -224,6 +228,7 @@ class AdminDrawer extends StatelessWidget {
                   icon: Icons.dashboard_outlined,
                   title: 'Dashboard',
                   route: '/admin/dashboard',
+                  isDark: isDark,
                 ),
 
                 _drawerButton(
@@ -231,6 +236,7 @@ class AdminDrawer extends StatelessWidget {
                   icon: Icons.manage_accounts_outlined,
                   title: 'User Management',
                   route: '/admin/user-management',
+                  isDark: isDark,
                 ),
 
                 _drawerButton(
@@ -238,6 +244,7 @@ class AdminDrawer extends StatelessWidget {
                   icon: Icons.article_outlined,
                   title: 'Post Management',
                   route: '/admin/post-management',
+                  isDark: isDark,
                 ),
 
                 if (isSuperAdmin)
@@ -246,6 +253,7 @@ class AdminDrawer extends StatelessWidget {
                     icon: Icons.admin_panel_settings_outlined,
                     title: 'User Access',
                     route: '/admin/user-access',
+                    isDark: isDark,
                   ),
 
                 _drawerButton(
@@ -253,11 +261,23 @@ class AdminDrawer extends StatelessWidget {
                   icon: Icons.settings_outlined,
                   title: 'Settings',
                   route: '/admin/settings',
+                  isDark: isDark,
                 ),
 
                 const Spacer(),
 
-                _logoutButton(context),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 18),
+                  child: Text(
+                    isSuperAdmin
+                        ? 'Campus SkillSwap Super Admin'
+                        : 'Campus SkillSwap Admin',
+                    style: TextStyle(
+                      color: footerColor,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
               ],
             );
           },

@@ -1,4 +1,5 @@
-import 'dart:math';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -10,6 +11,11 @@ class AdminDashboardPage extends StatelessWidget {
 
   final Color navy = const Color(0xFF1A1F5E);
   final Color bg = const Color(0xFFF5F5FA);
+
+  final Color darkBg = const Color(0xFF111827);
+  final Color darkCard = const Color(0xFF1F2937);
+  final Color darkBorder = const Color(0xFF374151);
+  final Color darkPurple = const Color(0xFF312E81);
 
   static const List<Color> chartColors = [
     Color(0xFFFBC695),
@@ -30,7 +36,7 @@ class AdminDashboardPage extends StatelessWidget {
   }
 
   String _getRole(Map<String, dynamic> data) {
-    return (data['role'] ?? 'admin').toString().toLowerCase();
+    return (data['role'] ?? 'admin').toString().trim().toLowerCase();
   }
 
   String _roleLabel(String role) {
@@ -45,13 +51,15 @@ class AdminDashboardPage extends StatelessWidget {
     return 'Admin';
   }
 
-  Widget _welcomeCard() {
+  Widget _welcomeCard(BuildContext context) {
     final currentUser = FirebaseAuth.instance.currentUser;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     if (currentUser == null) {
       return _welcomeCardContent(
         name: 'Admin',
         role: 'Admin',
+        isDark: isDark,
       );
     }
 
@@ -69,6 +77,7 @@ class AdminDashboardPage extends StatelessWidget {
         return _welcomeCardContent(
           name: name,
           role: role,
+          isDark: isDark,
         );
       },
     );
@@ -77,13 +86,19 @@ class AdminDashboardPage extends StatelessWidget {
   Widget _welcomeCardContent({
     required String name,
     required String role,
+    required bool isDark,
   }) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: navy,
+        color: isDark ? darkPurple : navy,
         borderRadius: BorderRadius.circular(16),
+        border: isDark
+            ? Border.all(
+          color: const Color(0xFF818CF8).withValues(alpha: 0.4),
+        )
+            : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -95,9 +110,7 @@ class AdminDashboardPage extends StatelessWidget {
               fontSize: 13,
             ),
           ),
-
           const SizedBox(height: 6),
-
           Text(
             '$name 👋',
             style: const TextStyle(
@@ -106,9 +119,7 @@ class AdminDashboardPage extends StatelessWidget {
               fontWeight: FontWeight.bold,
             ),
           ),
-
           const SizedBox(height: 8),
-
           Container(
             padding: const EdgeInsets.symmetric(
               horizontal: 10,
@@ -127,9 +138,7 @@ class AdminDashboardPage extends StatelessWidget {
               ),
             ),
           ),
-
           const SizedBox(height: 10),
-
           const Text(
             'Manage Campus SkillSwap from the dashboard.',
             style: TextStyle(
@@ -142,14 +151,300 @@ class AdminDashboardPage extends StatelessWidget {
     );
   }
 
+  Widget _chartCard({
+    required BuildContext context,
+    required bool isDark,
+  }) {
+    final cardColor = isDark ? darkCard : Colors.white;
+    final lineColor = isDark ? darkBorder : const Color(0xFFE0E0F0);
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subTextColor = isDark ? Colors.white60 : Colors.grey;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: lineColor,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(
+              alpha: isDark ? 0.18 : 0.04,
+            ),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Pie Chart',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: textColor,
+            ),
+          ),
+          Text(
+            'Programme Pie Chart',
+            style: TextStyle(
+              fontSize: 14,
+              color: subTextColor,
+            ),
+          ),
+          const SizedBox(height: 24),
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection('users').snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(
+                  child: Text(
+                    'Error loading data: ${snapshot.error}',
+                    style: TextStyle(
+                      color: textColor,
+                    ),
+                  ),
+                );
+              }
+
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+              }
+
+              final docs = snapshot.data?.docs ?? [];
+
+              if (docs.isEmpty) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      'No users found in database yet.',
+                      style: TextStyle(
+                        color: subTextColor,
+                      ),
+                    ),
+                  ),
+                );
+              }
+
+              Map<String, int> programmeCounts = {
+                'Computing / IT': 0,
+                'Business & Finance': 0,
+                'Engineering': 0,
+                'Arts & Others': 0,
+              };
+
+              for (final doc in docs) {
+                final data = doc.data() as Map<String, dynamic>?;
+                final course = (data?['course'] ??
+                    data?['studentCourse'] ??
+                    data?['programme'] ??
+                    data?['program'] ??
+                    '')
+                    .toString()
+                    .toLowerCase();
+
+                if (course.contains('computer') ||
+                    course.contains('information') ||
+                    course.contains('software') ||
+                    course.contains('digital media')) {
+                  programmeCounts['Computing / IT'] =
+                      programmeCounts['Computing / IT']! + 1;
+                } else if (course.contains('business') ||
+                    course.contains('accounting') ||
+                    course.contains('finance')) {
+                  programmeCounts['Business & Finance'] =
+                      programmeCounts['Business & Finance']! + 1;
+                } else if (course.contains('engineering')) {
+                  programmeCounts['Engineering'] =
+                      programmeCounts['Engineering']! + 1;
+                } else {
+                  programmeCounts['Arts & Others'] =
+                      programmeCounts['Arts & Others']! + 1;
+                }
+              }
+
+              programmeCounts.removeWhere((key, value) => value == 0);
+
+              if (programmeCounts.isEmpty) {
+                return Center(
+                  child: Text(
+                    'No data distribution available.',
+                    style: TextStyle(
+                      color: subTextColor,
+                    ),
+                  ),
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(
+                    flex: 5,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final size = math.min(
+                          constraints.maxWidth,
+                          175.0,
+                        );
+
+                        return SizedBox(
+                          height: size,
+                          width: size,
+                          child: CustomPaint(
+                            painter: DynamicPiePainter(
+                              data: programmeCounts,
+                              colors: chartColors,
+                              textColor: Colors.black87,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    flex: 5,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: List.generate(
+                        programmeCounts.keys.length,
+                            (index) {
+                          final key = programmeCounts.keys.elementAt(index);
+                          final labelColor =
+                          chartColors[index % chartColors.length];
+
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 6,
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 20,
+                                  height: 20,
+                                  decoration: BoxDecoration(
+                                    color: labelColor,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    key,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                      color: textColor,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _rankingCard({
+    required bool isDark,
+  }) {
+    final cardColor = isDark ? darkCard : Colors.white;
+    final lineColor = isDark ? darkBorder : const Color(0xFFE0E0F0);
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subTextColor = isDark ? Colors.white60 : Colors.grey;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: lineColor,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(
+              alpha: isDark ? 0.18 : 0.04,
+            ),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Ranking',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: textColor,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 32),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.star_outline_rounded,
+                    size: 48,
+                    color: subTextColor,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Ranking content feature coming soon',
+                    style: TextStyle(
+                      color: subTextColor,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final pageBg = isDark ? darkBg : bg;
+    final appBarColor = isDark ? darkBg : navy;
+
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: pageBg,
       drawer: const AdminDrawer(),
       appBar: AppBar(
         title: const Text('Dashboard'),
-        backgroundColor: navy,
+        backgroundColor: appBarColor,
         foregroundColor: Colors.white,
       ),
       body: SingleChildScrollView(
@@ -157,255 +452,15 @@ class AdminDashboardPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _welcomeCard(),
-
+            _welcomeCard(context),
             const SizedBox(height: 24),
-
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Pie Chart',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-
-                  const Text(
-                    'Programme Pie Chart',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey,
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  StreamBuilder<QuerySnapshot>(
-                    stream:
-                    FirebaseFirestore.instance.collection('users').snapshots(),
-                    builder: (context, snapshot) {
-                      if (snapshot.hasError) {
-                        return Center(
-                          child: Text(
-                            'Error loading data: ${snapshot.error}',
-                          ),
-                        );
-                      }
-
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(24),
-                            child: CircularProgressIndicator(),
-                          ),
-                        );
-                      }
-
-                      final docs = snapshot.data?.docs ?? [];
-
-                      if (docs.isEmpty) {
-                        return const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(24),
-                            child: Text('No users found in database yet.'),
-                          ),
-                        );
-                      }
-
-                      Map<String, int> programmeCounts = {
-                        'Computing / IT': 0,
-                        'Business & Finance': 0,
-                        'Engineering': 0,
-                        'Arts & Others': 0,
-                      };
-
-                      for (var doc in docs) {
-                        final data = doc.data() as Map<String, dynamic>?;
-                        final course = (data?['course'] ?? '').toString();
-
-                        if (course.contains('Computer') ||
-                            course.contains('Information') ||
-                            course.contains('Software') ||
-                            course.contains('Digital Media')) {
-                          programmeCounts['Computing / IT'] =
-                              programmeCounts['Computing / IT']! + 1;
-                        } else if (course.contains('Business') ||
-                            course.contains('Accounting') ||
-                            course.contains('Finance')) {
-                          programmeCounts['Business & Finance'] =
-                              programmeCounts['Business & Finance']! + 1;
-                        } else if (course.contains('Engineering')) {
-                          programmeCounts['Engineering'] =
-                              programmeCounts['Engineering']! + 1;
-                        } else {
-                          programmeCounts['Arts & Others'] =
-                              programmeCounts['Arts & Others']! + 1;
-                        }
-                      }
-
-                      programmeCounts.removeWhere((key, value) => value == 0);
-
-                      if (programmeCounts.isEmpty) {
-                        return const Center(
-                          child: Text('No data distribution available.'),
-                        );
-                      }
-
-                      return Row(
-                        children: [
-                          Expanded(
-                            flex: 5,
-                            child: LayoutBuilder(
-                              builder: (context, constraints) {
-                                final size = min(
-                                  constraints.maxWidth,
-                                  175.0,
-                                );
-
-                                return SizedBox(
-                                  height: size,
-                                  width: size,
-                                  child: CustomPaint(
-                                    painter: DynamicPiePainter(
-                                      data: programmeCounts,
-                                      colors: chartColors,
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-
-                          const SizedBox(width: 16),
-
-                          Expanded(
-                            flex: 5,
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: List.generate(
-                                programmeCounts.keys.length,
-                                    (index) {
-                                  final key =
-                                  programmeCounts.keys.elementAt(index);
-                                  final labelColor =
-                                  chartColors[index % chartColors.length];
-
-                                  return Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 6,
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Container(
-                                          width: 20,
-                                          height: 20,
-                                          decoration: BoxDecoration(
-                                            color: labelColor,
-                                            borderRadius:
-                                            BorderRadius.circular(4),
-                                          ),
-                                        ),
-
-                                        const SizedBox(width: 10),
-
-                                        Expanded(
-                                          child: Text(
-                                            key,
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                ],
-              ),
+            _chartCard(
+              context: context,
+              isDark: isDark,
             ),
-
             const SizedBox(height: 24),
-
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Ranking',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-
-                  SizedBox(height: 20),
-
-                  Center(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 32),
-                      child: Column(
-                        children: [
-                          Icon(
-                            Icons.star_outline_rounded,
-                            size: 48,
-                            color: Colors.grey,
-                          ),
-
-                          SizedBox(height: 8),
-
-                          Text(
-                            'Ranking content feature coming soon',
-                            style: TextStyle(
-                              color: Colors.grey,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+            _rankingCard(
+              isDark: isDark,
             ),
           ],
         ),
@@ -417,10 +472,12 @@ class AdminDashboardPage extends StatelessWidget {
 class DynamicPiePainter extends CustomPainter {
   final Map<String, int> data;
   final List<Color> colors;
+  final Color textColor;
 
   DynamicPiePainter({
     required this.data,
     required this.colors,
+    required this.textColor,
   });
 
   @override
@@ -437,7 +494,7 @@ class DynamicPiePainter extends CustomPainter {
       size.height / 2,
     );
 
-    final radius = min(
+    final radius = math.min(
       size.width,
       size.height,
     ) /
@@ -448,11 +505,11 @@ class DynamicPiePainter extends CustomPainter {
       radius: radius,
     );
 
-    double startAngle = -pi / 2;
+    double startAngle = -math.pi / 2;
     int index = 0;
 
     data.forEach((key, value) {
-      final sweepAngle = (value / total) * 2 * pi;
+      final sweepAngle = (value / total) * 2 * math.pi;
 
       final paint = Paint()
         ..color = colors[index % colors.length]
@@ -472,15 +529,15 @@ class DynamicPiePainter extends CustomPainter {
         final midAngle = startAngle + sweepAngle / 2;
 
         final textOffset = Offset(
-          center.dx + (radius * 0.55) * cos(midAngle),
-          center.dy + (radius * 0.55) * sin(midAngle),
+          center.dx + (radius * 0.55) * math.cos(midAngle),
+          center.dy + (radius * 0.55) * math.sin(midAngle),
         );
 
         final textPainter = TextPainter(
           text: TextSpan(
             text: '${percentageValue.toStringAsFixed(0)}%',
-            style: const TextStyle(
-              color: Colors.black87,
+            style: TextStyle(
+              color: textColor,
               fontWeight: FontWeight.bold,
               fontSize: 11,
             ),
@@ -506,5 +563,9 @@ class DynamicPiePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+  bool shouldRepaint(covariant DynamicPiePainter oldDelegate) {
+    return oldDelegate.data != data ||
+        oldDelegate.colors != colors ||
+        oldDelegate.textColor != textColor;
+  }
 }

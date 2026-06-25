@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../app_theme.dart';
 import 'admin_drawer.dart';
 
 class AdminSettingsPage extends StatelessWidget {
@@ -9,6 +10,9 @@ class AdminSettingsPage extends StatelessWidget {
 
   final Color navy = const Color(0xFF1A1F5E);
   final Color bg = const Color(0xFFF5F5FA);
+  final Color darkBg = const Color(0xFF111827);
+  final Color darkCard = const Color(0xFF1F2937);
+  final Color darkBorder = const Color(0xFF374151);
   final Color border = const Color(0xFFE0E0F0);
   final Color purple = const Color(0xFFE8E4F8);
   final Color purpleDeep = const Color(0xFF7C5CBF);
@@ -110,61 +114,73 @@ class AdminSettingsPage extends StatelessWidget {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text(
-          'Edit Admin Name',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
-        ),
-        content: TextField(
-          controller: nameController,
-          decoration: InputDecoration(
-            hintText: 'Enter your name',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+
+        return AlertDialog(
+          backgroundColor: isDark ? darkCard : Colors.white,
+          title: Text(
+            'Edit Admin Name',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+              color: isDark ? Colors.white : Colors.black87,
             ),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-            },
-            child: const Text(
-              'Cancel',
-              style: TextStyle(
-                color: Colors.grey,
+          content: TextField(
+            controller: nameController,
+            style: TextStyle(
+              color: isDark ? Colors.white : Colors.black87,
+            ),
+            decoration: InputDecoration(
+              hintText: 'Enter your name',
+              hintStyle: TextStyle(
+                color: isDark ? Colors.white54 : Colors.grey,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
               ),
             ),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: navy,
-              foregroundColor: Colors.white,
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text(
+                'Cancel',
+                style: TextStyle(
+                  color: Colors.grey,
+                ),
+              ),
             ),
-            onPressed: () async {
-              final newName = nameController.text.trim();
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: navy,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () async {
+                final newName = nameController.text.trim();
 
-              if (newName.isEmpty) return;
+                if (newName.isEmpty) return;
 
-              await FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(uid)
-                  .set({
-                'name': newName,
-                'fullName': newName,
-              }, SetOptions(merge: true));
+                await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(uid)
+                    .set({
+                  'name': newName,
+                  'fullName': newName,
+                }, SetOptions(merge: true));
 
-              if (!context.mounted) return;
+                if (!context.mounted) return;
 
-              Navigator.pop(context);
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
+                Navigator.pop(context);
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -172,21 +188,25 @@ class AdminSettingsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final authUser = FirebaseAuth.instance.currentUser;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final pageBg = isDark ? darkBg : bg;
+    final cardColor = isDark ? darkCard : Colors.white;
+    final textColor = isDark ? Colors.white : const Color(0xFF1F223D);
+    final subTextColor = isDark ? Colors.white70 : Colors.grey;
+    final sectionTextColor = isDark ? Colors.white70 : Colors.black54;
+    final lineColor = isDark ? darkBorder : border;
+    final avatarBg = isDark ? const Color(0xFF312E81) : purple;
+    final iconColor = isDark ? Colors.white : navy;
+
     return Scaffold(
-      backgroundColor: bg,
-
-      // This enables the drawer
+      backgroundColor: pageBg,
       drawer: const AdminDrawer(),
-
       appBar: AppBar(
         title: const Text('Settings'),
         backgroundColor: navy,
         foregroundColor: Colors.white,
-
-        // This removes the back arrow
         automaticallyImplyLeading: false,
-
-        // This shows the three-line menu icon
         leading: Builder(
           builder: (context) {
             return IconButton(
@@ -199,10 +219,14 @@ class AdminSettingsPage extends StatelessWidget {
           },
         ),
       ),
-
       body: authUser == null
-          ? const Center(
-        child: Text('No active administrative session.'),
+          ? Center(
+        child: Text(
+          'No active administrative session.',
+          style: TextStyle(
+            color: textColor,
+          ),
+        ),
       )
           : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
@@ -255,11 +279,16 @@ class AdminSettingsPage extends StatelessWidget {
                   width: double.infinity,
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: cardColor,
                     borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: lineColor,
+                    ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
+                        color: Colors.black.withValues(
+                          alpha: isDark ? 0.18 : 0.04,
+                        ),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
@@ -272,7 +301,7 @@ class AdminSettingsPage extends StatelessWidget {
                         children: [
                           CircleAvatar(
                             radius: 45,
-                            backgroundColor: purple,
+                            backgroundColor: avatarBg,
                             child: profileImageUrl.isNotEmpty
                                 ? ClipOval(
                               child: Image.network(
@@ -331,9 +360,10 @@ class AdminSettingsPage extends StatelessWidget {
 
                       Text(
                         name,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
+                          color: textColor,
                         ),
                       ),
 
@@ -341,9 +371,9 @@ class AdminSettingsPage extends StatelessWidget {
 
                       Text(
                         email,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
-                          color: Colors.grey,
+                          color: subTextColor,
                         ),
                       ),
 
@@ -355,13 +385,15 @@ class AdminSettingsPage extends StatelessWidget {
                           vertical: 5,
                         ),
                         decoration: BoxDecoration(
-                          color: navy.withValues(alpha: 0.08),
+                          color: isDark
+                              ? const Color(0xFF312E81)
+                              : navy.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
                           _capitalize(rawRole),
                           style: TextStyle(
-                            color: navy,
+                            color: isDark ? Colors.white : navy,
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
                           ),
@@ -373,12 +405,12 @@ class AdminSettingsPage extends StatelessWidget {
 
                 const SizedBox(height: 24),
 
-                const Text(
+                Text(
                   'Account Settings',
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black54,
+                    color: sectionTextColor,
                   ),
                 ),
 
@@ -386,10 +418,10 @@ class AdminSettingsPage extends StatelessWidget {
 
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: cardColor,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: border,
+                      color: lineColor,
                     ),
                   ),
                   child: Column(
@@ -397,57 +429,70 @@ class AdminSettingsPage extends StatelessWidget {
                       ListTile(
                         leading: Icon(
                           Icons.lock_reset_outlined,
-                          color: navy,
+                          color: iconColor,
                         ),
-                        title: const Text(
+                        title: Text(
                           "Change Password",
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
+                            color: textColor,
                           ),
                         ),
-                        trailing: const Icon(
+                        trailing: Icon(
                           Icons.chevron_right,
                           size: 20,
+                          color: subTextColor,
                         ),
                         onTap: () {
                           _changePassword(context);
                         },
                       ),
 
-                      const Divider(
+                      Divider(
                         height: 1,
                         indent: 50,
+                        color: lineColor,
                       ),
 
-                      ListTile(
-                        leading: Icon(
-                          Icons.dark_mode_outlined,
-                          color: navy,
-                        ),
-                        title: const Text(
-                          "Dark Mode",
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        trailing: const Icon(
-                          Icons.chevron_right,
-                          size: 20,
-                        ),
-                        onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text("Dark Mode coming soon"),
+                      ValueListenableBuilder<ThemeMode>(
+                        valueListenable: AppTheme.themeMode,
+                        builder: (context, themeMode, child) {
+                          final isDarkMode =
+                              themeMode == ThemeMode.dark;
+
+                          return ListTile(
+                            leading: Icon(
+                              isDarkMode
+                                  ? Icons.dark_mode
+                                  : Icons.dark_mode_outlined,
+                              color: iconColor,
                             ),
+                            title: Text(
+                              "Dark Mode",
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: textColor,
+                              ),
+                            ),
+                            trailing: Switch(
+                              value: isDarkMode,
+                              onChanged: (value) {
+                                AppTheme.toggleTheme(value);
+                              },
+                            ),
+                            onTap: () {
+                              AppTheme.toggleTheme(!isDarkMode);
+                            },
                           );
                         },
                       ),
 
-                      const Divider(
+                      Divider(
                         height: 1,
                         indent: 50,
+                        color: lineColor,
                       ),
 
                       ListTile(

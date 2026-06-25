@@ -17,8 +17,11 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
   final Color border = const Color(0xFFE0E0F0);
   final Color green = const Color(0xFF4CAF50);
   final Color red = const Color(0xFFE53935);
-  final Color purple = const Color(0xFFE8E4F8);
-  final Color purpleDeep = const Color(0xFF7C5CBF);
+
+  final Color darkBg = const Color(0xFF111827);
+  final Color darkCard = const Color(0xFF1F2937);
+  final Color darkBorder = const Color(0xFF374151);
+  final Color darkField = const Color(0xFF111827);
 
   @override
   void initState() {
@@ -66,7 +69,25 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
     return value.toString();
   }
 
-  bool _matchesSearch(Map<String, dynamic> data) {
+  String _skillsText(dynamic value) {
+    if (value == null) return 'No skills';
+
+    if (value is List) {
+      if (value.isEmpty) return 'No skills';
+
+      return value.map((e) => e.toString()).join(', ');
+    }
+
+    final text = value.toString().trim();
+
+    if (text.isEmpty) return 'No skills';
+
+    return text;
+  }
+
+  bool _matchesUserSearch(Map<String, dynamic> data) {
+    if (_searchText.isEmpty) return true;
+
     final name = _text(data['deletedUserName']).toLowerCase();
     final email = _text(data['deletedUserEmail']).toLowerCase();
     final deletedBy = _text(data['deletedByEmail']).toLowerCase();
@@ -76,7 +97,10 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
         deletedBy.contains(_searchText);
   }
 
-  Widget _deletedUserCard(Map<String, dynamic> data) {
+  Widget _deletedUserCard(
+      Map<String, dynamic> data, {
+        required bool isDark,
+      }) {
     final name = _text(data['deletedUserName'], fallback: 'No Name');
     final email = _text(data['deletedUserEmail'], fallback: 'No Email');
     final course = _text(data['deletedUserCourse'], fallback: 'No course');
@@ -88,11 +112,18 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
     final restoredBy = _text(data['restoredByEmail']);
     final restoredAt = _formatDate(data['restoredAt']);
 
+    final cardColor = isDark ? darkCard : Colors.white;
+    final lineColor = isDark ? darkBorder : border;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subTextColor = isDark ? Colors.white60 : Colors.grey;
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: border),
+        color: cardColor,
+        border: Border.all(
+          color: lineColor,
+        ),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -116,9 +147,10 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
               children: [
                 Text(
                   name,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
+                    color: textColor,
                   ),
                 ),
 
@@ -126,8 +158,8 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
 
                 Text(
                   email,
-                  style: const TextStyle(
-                    color: Colors.grey,
+                  style: TextStyle(
+                    color: subTextColor,
                     fontSize: 12,
                   ),
                 ),
@@ -136,28 +168,35 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
 
                 Text(
                   'Course: $course',
-                  style: const TextStyle(fontSize: 12),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: textColor,
+                  ),
                 ),
 
                 Text(
                   'Skills: $skills',
-                  style: const TextStyle(fontSize: 12),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: textColor,
+                  ),
                 ),
 
                 const SizedBox(height: 8),
 
                 Text(
                   'Deleted by: $deletedBy',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
+                    color: textColor,
                   ),
                 ),
 
                 Text(
                   'Deleted at: $deletedAt',
-                  style: const TextStyle(
-                    color: Colors.grey,
+                  style: TextStyle(
+                    color: subTextColor,
                     fontSize: 12,
                   ),
                 ),
@@ -166,15 +205,16 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
                   const SizedBox(height: 8),
                   Text(
                     'Restored by: $restoredBy',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
+                      color: textColor,
                     ),
                   ),
                   Text(
                     'Restored at: $restoredAt',
-                    style: const TextStyle(
-                      color: Colors.grey,
+                    style: TextStyle(
+                      color: subTextColor,
                       fontSize: 12,
                     ),
                   ),
@@ -189,7 +229,11 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
                   ),
                   decoration: BoxDecoration(
                     color: isRestored
-                        ? const Color(0xFFE8F5E9)
+                        ? isDark
+                        ? const Color(0xFF102A1D)
+                        : const Color(0xFFE8F5E9)
+                        : isDark
+                        ? const Color(0xFF2F1518)
                         : const Color(0xFFFFEBEE),
                     borderRadius: BorderRadius.circular(6),
                   ),
@@ -210,16 +254,230 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
     );
   }
 
-  Widget _deletedUsersSection() {
+  Widget _deletedPostCard(
+      Map<String, dynamic> data, {
+        required bool isDark,
+      }) {
+    final originalData = data['originalData'];
+
+    final Map<String, dynamic> originalPostData =
+    originalData is Map ? Map<String, dynamic>.from(originalData) : {};
+
+    final title = _text(
+      data['title'] ??
+          data['postTitle'] ??
+          originalPostData['title'] ??
+          originalPostData['postTitle'] ??
+          originalPostData['skillTitle'],
+      fallback: 'No title',
+    );
+
+    final description = _text(
+      data['description'] ??
+          originalPostData['description'] ??
+          originalPostData['content'] ??
+          originalPostData['details'],
+      fallback: 'No description',
+    );
+
+    final category = _text(
+      data['category'] ??
+          originalPostData['category'] ??
+          originalPostData['skillCategory'] ??
+          originalPostData['type'],
+      fallback: 'No category',
+    );
+
+    final postedBy = _text(
+      data['postedBy'] ??
+          data['ownerEmail'] ??
+          originalPostData['userEmail'] ??
+          originalPostData['email'] ??
+          originalPostData['postedBy'],
+      fallback: 'Unknown user',
+    );
+
+    final course = _text(
+      data['course'] ??
+          originalPostData['course'] ??
+          originalPostData['studentCourse'] ??
+          originalPostData['programme'] ??
+          originalPostData['program'],
+      fallback: 'No course',
+    );
+
+    final skills = _skillsText(
+      data['skills'] ??
+          originalPostData['skills'] ??
+          originalPostData['skill'] ??
+          originalPostData['skillTitle'],
+    );
+
+    final deletedBy = _text(
+      data['deletedByEmail'],
+      fallback: 'Unknown Admin',
+    );
+
+    final deletedAt = _formatDate(data['deletedAt']);
+
+    final cardColor = isDark ? darkCard : Colors.white;
+    final lineColor = isDark ? darkBorder : border;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subTextColor = isDark ? Colors.white60 : Colors.grey;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: cardColor,
+        border: Border.all(
+          color: lineColor,
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 22,
+            backgroundColor: red,
+            child: const Icon(
+              Icons.article_outlined,
+              color: Colors.white,
+              size: 22,
+            ),
+          ),
+
+          const SizedBox(width: 12),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: textColor,
+                  ),
+                ),
+
+                const SizedBox(height: 3),
+
+                Text(
+                  description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: subTextColor,
+                    fontSize: 12,
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                Text(
+                  'Category: $category',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: textColor,
+                  ),
+                ),
+
+                Text(
+                  'Posted by: $postedBy',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: textColor,
+                  ),
+                ),
+
+                Text(
+                  'Course: $course',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: textColor,
+                  ),
+                ),
+
+                Text(
+                  'Skills: $skills',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: textColor,
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                Text(
+                  'Deleted by: $deletedBy',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                ),
+
+                Text(
+                  'Deleted at: $deletedAt',
+                  style: TextStyle(
+                    color: subTextColor,
+                    fontSize: 12,
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? const Color(0xFF2F1518)
+                        : const Color(0xFFFFEBEE),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'Deleted Post',
+                    style: TextStyle(
+                      color: red,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _deletedUsersSection({
+    required bool isDark,
+  }) {
+    final cardColor = isDark ? darkCard : Colors.white;
+    final lineColor = isDark ? darkBorder : border;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subTextColor = isDark ? Colors.white60 : Colors.grey;
+    final fieldColor = isDark ? darkField : bg;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardColor,
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: lineColor,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -230,7 +488,7 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
         children: [
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 flex: 4,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -240,14 +498,14 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: Colors.black87,
+                        color: textColor,
                       ),
                     ),
                     Text(
                       'Deleted logs archive',
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey,
+                        color: subTextColor,
                       ),
                     ),
                   ],
@@ -262,43 +520,54 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
                   height: 40,
                   child: TextField(
                     controller: _searchCtrl,
+                    style: TextStyle(
+                      color: textColor,
+                    ),
                     decoration: InputDecoration(
                       hintText: 'Search deleted accounts...',
-                      hintStyle: const TextStyle(
+                      hintStyle: TextStyle(
                         fontSize: 13,
-                        color: Colors.grey,
+                        color: subTextColor,
                       ),
-                      prefixIcon: const Icon(
+                      prefixIcon: Icon(
                         Icons.search,
                         size: 18,
-                        color: Colors.grey,
+                        color: subTextColor,
                       ),
                       suffixIcon: _searchCtrl.text.isNotEmpty
                           ? IconButton(
-                        icon: const Icon(Icons.clear, size: 18),
+                        icon: Icon(
+                          Icons.clear,
+                          size: 18,
+                          color: subTextColor,
+                        ),
                         onPressed: () {
                           _searchCtrl.clear();
                         },
                       )
                           : null,
                       filled: true,
-                      fillColor: bg,
+                      fillColor: fieldColor,
                       contentPadding: const EdgeInsets.symmetric(
                         vertical: 0,
                         horizontal: 12,
                       ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: border),
+                        borderSide: BorderSide(
+                          color: lineColor,
+                        ),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: border),
+                        borderSide: BorderSide(
+                          color: lineColor,
+                        ),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                         borderSide: BorderSide(
-                          color: navy,
+                          color: isDark ? const Color(0xFF818CF8) : navy,
                           width: 1.2,
                         ),
                       ),
@@ -311,7 +580,9 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
 
           const SizedBox(height: 16),
 
-          const Divider(),
+          Divider(
+            color: lineColor,
+          ),
 
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
@@ -324,7 +595,9 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
                   padding: const EdgeInsets.all(16),
                   child: Text(
                     'Error: ${snapshot.error}',
-                    style: const TextStyle(color: Colors.red),
+                    style: const TextStyle(
+                      color: Colors.red,
+                    ),
                   ),
                 );
               }
@@ -342,17 +615,17 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
 
               final filteredDocs = docs.where((doc) {
                 final data = doc.data() as Map<String, dynamic>;
-                return _matchesSearch(data);
+                return _matchesUserSearch(data);
               }).toList();
 
               if (filteredDocs.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
                   child: Center(
                     child: Text(
                       'No deleted user accounts matching requirements found.',
                       style: TextStyle(
-                        color: Colors.grey,
+                        color: subTextColor,
                         fontSize: 13,
                       ),
                     ),
@@ -371,7 +644,10 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
                   final doc = filteredDocs[index];
                   final data = doc.data() as Map<String, dynamic>;
 
-                  return _deletedUserCard(data);
+                  return _deletedUserCard(
+                    data,
+                    isDark: isDark,
+                  );
                 },
               );
             },
@@ -381,22 +657,32 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
     );
   }
 
-  Widget _deletedPostsSection() {
+  Widget _deletedPostsSection({
+    required bool isDark,
+  }) {
+    final cardColor = isDark ? darkCard : Colors.white;
+    final lineColor = isDark ? darkBorder : border;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subTextColor = isDark ? Colors.white60 : Colors.grey;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardColor,
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: lineColor,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
@@ -404,40 +690,97 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
-              color: Colors.black87,
+              color: textColor,
             ),
           ),
+
           Text(
             'Deleted community skill swap listings',
             style: TextStyle(
               fontSize: 12,
-              color: Colors.grey,
+              color: subTextColor,
             ),
           ),
-          SizedBox(height: 16),
-          Divider(),
-          Center(
-            child: Padding(
-              padding: EdgeInsets.symmetric(vertical: 32),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.layers_clear_outlined,
-                    size: 40,
-                    color: Colors.grey,
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'No deleted posts recorded in this session',
-                    style: TextStyle(
-                      color: Colors.grey,
-                      fontSize: 13,
+
+          const SizedBox(height: 16),
+
+          Divider(
+            color: lineColor,
+          ),
+
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('deleted_posts_history')
+                .orderBy('deletedAt', descending: true)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    'Error: ${snapshot.error}',
+                    style: const TextStyle(
+                      color: Colors.red,
                     ),
                   ),
-                ],
-              ),
-            ),
+                );
+              }
+
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+              }
+
+              final docs = snapshot.data?.docs ?? [];
+
+              if (docs.isEmpty) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.layers_clear_outlined,
+                          size: 40,
+                          color: subTextColor,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'No deleted posts recorded yet',
+                          style: TextStyle(
+                            color: subTextColor,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              return ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: docs.length,
+                separatorBuilder: (context, index) {
+                  return const SizedBox(height: 10);
+                },
+                itemBuilder: (context, index) {
+                  final doc = docs[index];
+                  final data = doc.data() as Map<String, dynamic>;
+
+                  return _deletedPostCard(
+                    data,
+                    isDark: isDark,
+                  );
+                },
+              );
+            },
           ),
         ],
       ),
@@ -446,12 +789,15 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: bg,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    final pageBg = isDark ? darkBg : bg;
+
+    return Scaffold(
+      backgroundColor: pageBg,
       appBar: AppBar(
         title: const Text('Audit Track Dashboard'),
-        backgroundColor: navy,
+        backgroundColor: isDark ? darkBg : navy,
         foregroundColor: Colors.white,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -460,17 +806,20 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
           },
         ),
       ),
-
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _deletedUsersSection(),
+            _deletedUsersSection(
+              isDark: isDark,
+            ),
 
             const SizedBox(height: 24),
 
-            _deletedPostsSection(),
+            _deletedPostsSection(
+              isDark: isDark,
+            ),
           ],
         ),
       ),

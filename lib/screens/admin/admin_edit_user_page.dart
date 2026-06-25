@@ -31,6 +31,13 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
 
   final Color navy = const Color(0xFF1A1F5E);
   final Color bg = const Color(0xFFF5F5FA);
+  final Color border = const Color(0xFFE0E0F0);
+
+  final Color darkBg = const Color(0xFF111827);
+  final Color darkCard = const Color(0xFF1F2937);
+  final Color darkBorder = const Color(0xFF374151);
+  final Color darkField = const Color(0xFF111827);
+  final Color darkPurple = const Color(0xFF312E81);
 
   final List<String> courseOptions = [
     'Bachelor of Computer Science',
@@ -41,7 +48,6 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
     'Bachelor of Mass Communication',
     'Bachelor of Psychology',
     'Bachelor of Biotechnology',
-
     'Diploma in Computer Science',
     'Diploma in Information Technology',
     'Diploma in Business',
@@ -53,12 +59,10 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
     'Diploma in Digital Media',
     'Diploma in Mechanical Engineering',
     'Diploma in Civil Engineering',
-
     'Foundation in Science',
     'Foundation in Business',
     'Foundation in Arts',
     'A-Level',
-
     'Other',
   ];
 
@@ -70,9 +74,14 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
   }
 
   void _loadTargetUserData() {
-    nameCtrl.text = widget.userData['name']?.toString() ?? '';
+    nameCtrl.text = widget.userData['name']?.toString() ??
+        widget.userData['fullName']?.toString() ??
+        '';
 
     final savedCourse = widget.userData['course']?.toString() ??
+        widget.userData['studentCourse']?.toString() ??
+        widget.userData['programme']?.toString() ??
+        widget.userData['program']?.toString() ??
         widget.userData['education']?.toString() ??
         '';
 
@@ -93,7 +102,8 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
       skillCtrl.text = skills?.toString() ?? '';
     }
 
-    final role = widget.userData['role']?.toString().toLowerCase() ?? 'user';
+    final role =
+        widget.userData['role']?.toString().trim().toLowerCase() ?? 'user';
 
     if (role == 'superadmin') {
       selectedRole = 'superadmin';
@@ -128,7 +138,8 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
           .get();
 
       final data = doc.data() ?? {};
-      final currentRole = data['role']?.toString().toLowerCase() ?? 'user';
+      final currentRole =
+          data['role']?.toString().trim().toLowerCase() ?? 'user';
 
       if (!mounted) return;
 
@@ -189,6 +200,7 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
 
       final Map<String, dynamic> updateData = {
         'name': name,
+        'fullName': name,
         'course': course,
         'school': 'INTI College',
         'education': FieldValue.delete(),
@@ -197,8 +209,6 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
-      // Only superadmin can change role.
-      // But superadmin accounts cannot be changed/demoted here.
       if (isSuperAdmin && !targetIsSuperAdmin) {
         updateData['role'] = selectedRole;
       }
@@ -223,6 +233,7 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to update profile: $e'),
+          backgroundColor: Colors.red,
         ),
       );
     } finally {
@@ -236,7 +247,9 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
 
   void showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
+      SnackBar(
+        content: Text(message),
+      ),
     );
   }
 
@@ -251,37 +264,96 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
   Widget _input({
     required String label,
     required TextEditingController controller,
+    required bool isDark,
     int maxLines = 1,
   }) {
+    final fillColor = isDark ? darkCard : Colors.white;
+    final lineColor = isDark ? darkBorder : border;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final hintColor = isDark ? Colors.white60 : Colors.grey;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: TextField(
         controller: controller,
         maxLines: maxLines,
+        style: TextStyle(
+          color: textColor,
+        ),
         decoration: InputDecoration(
           labelText: label,
+          labelStyle: TextStyle(
+            color: hintColor,
+          ),
           filled: true,
-          fillColor: Colors.white,
+          fillColor: fillColor,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(
+              color: lineColor,
+            ),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(
+              color: lineColor,
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(
+              color: isDark ? const Color(0xFF818CF8) : navy,
+              width: 1.4,
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _courseDropdown() {
+  Widget _courseDropdown({
+    required bool isDark,
+  }) {
+    final fillColor = isDark ? darkCard : Colors.white;
+    final lineColor = isDark ? darkBorder : border;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final hintColor = isDark ? Colors.white60 : Colors.grey;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: DropdownButtonFormField<String>(
         initialValue: selectedCourse,
         isExpanded: true,
+        dropdownColor: fillColor,
+        style: TextStyle(
+          color: textColor,
+          fontSize: 14,
+        ),
         decoration: InputDecoration(
           labelText: 'Course',
+          labelStyle: TextStyle(
+            color: hintColor,
+          ),
           filled: true,
-          fillColor: Colors.white,
+          fillColor: fillColor,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(
+              color: lineColor,
+            ),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(
+              color: lineColor,
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(
+              color: isDark ? const Color(0xFF818CF8) : navy,
+              width: 1.4,
+            ),
           ),
         ),
         items: courseOptions.map((course) {
@@ -306,17 +378,48 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
     );
   }
 
-  Widget _roleDropdown() {
+  Widget _roleDropdown({
+    required bool isDark,
+  }) {
+    final fillColor = isDark ? darkCard : Colors.white;
+    final lineColor = isDark ? darkBorder : border;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final hintColor = isDark ? Colors.white60 : Colors.grey;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: DropdownButtonFormField<String>(
         initialValue: selectedRole,
+        dropdownColor: fillColor,
+        style: TextStyle(
+          color: textColor,
+          fontSize: 14,
+        ),
         decoration: InputDecoration(
           labelText: 'Role',
+          labelStyle: TextStyle(
+            color: hintColor,
+          ),
           filled: true,
-          fillColor: Colors.white,
+          fillColor: fillColor,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(
+              color: lineColor,
+            ),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(
+              color: lineColor,
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(
+              color: isDark ? const Color(0xFF818CF8) : navy,
+              width: 1.4,
+            ),
           ),
         ),
         items: const [
@@ -340,19 +443,44 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
     );
   }
 
-  Widget _lockedSuperAdminRoleBox() {
+  Widget _lockedSuperAdminRoleBox({
+    required bool isDark,
+  }) {
+    final fillColor = isDark ? darkField : Colors.grey.shade200;
+    final lineColor = isDark ? darkBorder : border;
+    final textColor = isDark ? Colors.white70 : Colors.black54;
+    final hintColor = isDark ? Colors.white60 : Colors.grey;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
-      child: TextField(
+      child: TextFormField(
+        initialValue: 'Super Admin',
         enabled: false,
-        controller: TextEditingController(text: 'Super Admin'),
+        style: TextStyle(
+          color: textColor,
+        ),
         decoration: InputDecoration(
           labelText: 'Role',
+          labelStyle: TextStyle(
+            color: hintColor,
+          ),
           filled: true,
-          fillColor: Colors.grey.shade200,
-          suffixIcon: const Icon(Icons.lock_outline),
+          fillColor: fillColor,
+          suffixIcon: Icon(
+            Icons.lock_outline,
+            color: hintColor,
+          ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(
+              color: lineColor,
+            ),
+          ),
+          disabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(
+              color: lineColor,
+            ),
           ),
         ),
       ),
@@ -362,12 +490,20 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
   @override
   Widget build(BuildContext context) {
     final email = widget.userData['email']?.toString() ?? 'No Email';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final pageBg = isDark ? darkBg : bg;
+    final cardColor = isDark ? darkCard : Colors.white;
+    final lineColor = isDark ? darkBorder : border;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subTextColor = isDark ? Colors.white60 : Colors.grey;
+    final avatarBg = isDark ? darkPurple : navy;
 
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: pageBg,
       appBar: AppBar(
         title: const Text('Edit User Profile'),
-        backgroundColor: navy,
+        backgroundColor: isDark ? darkBg : navy,
         foregroundColor: Colors.white,
       ),
       body: checkingRole
@@ -376,86 +512,131 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
       )
           : SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            CircleAvatar(
-              radius: 34,
-              backgroundColor: navy,
-              child: Text(
-                nameCtrl.text.isNotEmpty
-                    ? nameCtrl.text[0].toUpperCase()
-                    : '?',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: lineColor,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(
+                  alpha: isDark ? 0.18 : 0.04,
                 ),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
-            ),
-
-            const SizedBox(height: 10),
-
-            Text(
-              email,
-              style: const TextStyle(
-                color: Colors.grey,
-                fontSize: 13,
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            _input(
-              label: 'Name',
-              controller: nameCtrl,
-            ),
-
-            _courseDropdown(),
-
-            if (selectedCourse == 'Other')
-              _input(
-                label: 'Enter Course',
-                controller: customCourseCtrl,
-              ),
-
-            _input(
-              label: 'Skills',
-              controller: skillCtrl,
-              maxLines: 2,
-            ),
-
-            if (isSuperAdmin && targetIsSuperAdmin)
-              _lockedSuperAdminRoleBox()
-            else if (isSuperAdmin)
-              _roleDropdown(),
-
-            const SizedBox(height: 14),
-
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: loading ? null : _saveProfile,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: navy,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                child: loading
-                    ? const SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(
+            ],
+          ),
+          child: Column(
+            children: [
+              CircleAvatar(
+                radius: 34,
+                backgroundColor: avatarBg,
+                child: Text(
+                  nameCtrl.text.isNotEmpty
+                      ? nameCtrl.text[0].toUpperCase()
+                      : '?',
+                  style: const TextStyle(
                     color: Colors.white,
-                    strokeWidth: 2,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
                   ),
-                )
-                    : const Text(
-                  'Save Changes',
-                  style: TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
-            ),
-          ],
+
+              const SizedBox(height: 10),
+
+              Text(
+                email,
+                style: TextStyle(
+                  color: subTextColor,
+                  fontSize: 13,
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              _input(
+                label: 'Name',
+                controller: nameCtrl,
+                isDark: isDark,
+              ),
+
+              _courseDropdown(
+                isDark: isDark,
+              ),
+
+              if (selectedCourse == 'Other')
+                _input(
+                  label: 'Enter Course',
+                  controller: customCourseCtrl,
+                  isDark: isDark,
+                ),
+
+              _input(
+                label: 'Skills',
+                controller: skillCtrl,
+                isDark: isDark,
+                maxLines: 2,
+              ),
+
+              if (isSuperAdmin && targetIsSuperAdmin)
+                _lockedSuperAdminRoleBox(
+                  isDark: isDark,
+                )
+              else if (isSuperAdmin)
+                _roleDropdown(
+                  isDark: isDark,
+                ),
+
+              const SizedBox(height: 14),
+
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: loading ? null : _saveProfile,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                    isDark ? const Color(0xFF312E81) : navy,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor:
+                    isDark ? darkBorder : Colors.grey.shade300,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: loading
+                      ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  )
+                      : const Text(
+                    'Save Changes',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 4),
+
+              Text(
+                'Changes will update the selected user profile only.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: subTextColor,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
