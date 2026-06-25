@@ -38,6 +38,7 @@ class _LoginPageState extends State<LoginPage> {
 
     setState(() {
       loginError = null;
+      isLoading = true;
     });
 
     final email = emailCtrl.text.trim();
@@ -46,13 +47,10 @@ class _LoginPageState extends State<LoginPage> {
     if (email.isEmpty || password.isEmpty) {
       setState(() {
         loginError = "Please enter email and password.";
+        isLoading = false;
       });
       return;
     }
-
-    setState(() {
-      isLoading = true;
-    });
 
     try {
       final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
@@ -63,43 +61,26 @@ class _LoginPageState extends State<LoginPage> {
       User? user = credential.user;
 
       if (user == null) {
-        if (!mounted) return;
-
         setState(() {
           loginError = "User not found.";
         });
         return;
       }
 
-      // Refresh Firebase user data to get latest email verification status
       await user.reload();
       user = FirebaseAuth.instance.currentUser;
 
       if (user == null) {
-        if (!mounted) return;
-
         setState(() {
           loginError = "User not found.";
         });
         return;
       }
 
-      // Email verification checking
       if (user.emailVerified == false) {
-        try {
-          await user.sendEmailVerification();
-        } catch (_) {
-          // Ignore resend error to avoid crashing the login page
-        }
-
-        await FirebaseAuth.instance.signOut();
-
         if (!mounted) return;
 
-        setState(() {
-          loginError =
-          "Please verify your email before logging in. A verification email has been sent, please check your inbox, spam, or junk folder. ";
-        });
+        Navigator.pushReplacementNamed(context, '/verify-email');
         return;
       }
 
@@ -124,11 +105,6 @@ class _LoginPageState extends State<LoginPage> {
       final profileCompleted = data['profileCompleted'] ?? false;
       final suspended = data['suspended'] ?? false;
 
-      // Update Firestore emailVerified field after successful verification
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
-        'emailVerified': true, 'isOnline': true,
-      });
-
       if (suspended == true) {
         await FirebaseAuth.instance.signOut();
 
@@ -140,9 +116,14 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+        'emailVerified': true,
+        'isOnline': true,
+      });
+
       if (!mounted) return;
 
-      if (role == 'admin'|| role == 'superadmin') {
+      if (role == 'admin' || role == 'superadmin') {
         Navigator.pushReplacementNamed(context, '/admin/dashboard');
       } else if (profileCompleted == false) {
         Navigator.pushReplacementNamed(context, '/create-profile');
@@ -229,23 +210,19 @@ class _LoginPageState extends State<LoginPage> {
   Widget _errorBox() {
     if (loginError == null) return const SizedBox.shrink();
 
-    final isSuccess = loginError!.toLowerCase().contains('sent');
-
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(top: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isSuccess ? const Color(0xFFE8F5E9) : const Color(0xFFFFEBEE),
+        color: const Color(0xFFFFEBEE),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: isSuccess ? green : Colors.redAccent,
-        ),
+        border: Border.all(color: Colors.redAccent),
       ),
       child: Text(
         loginError!,
-        style: TextStyle(
-          color: isSuccess ? green : Colors.redAccent,
+        style: const TextStyle(
+          color: Colors.redAccent,
           fontSize: 13,
           fontWeight: FontWeight.w600,
         ),

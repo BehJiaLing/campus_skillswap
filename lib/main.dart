@@ -10,6 +10,7 @@ import 'screens/auth/login_page.dart';
 import 'screens/auth/signup_page.dart';
 import 'screens/auth/create_profile_page.dart';
 import 'screens/auth/forgot_password_page.dart';
+import 'screens/auth/verify_email_page.dart';
 
 import 'screens/users/post_page.dart';
 import 'screens/users/create_post_page.dart';
@@ -50,7 +51,6 @@ class MyApp extends StatelessWidget {
         return MaterialApp(
           title: 'Campus SkillSwap',
           debugShowCheckedModeBanner: false,
-
           themeMode: themeMode,
 
           theme: ThemeData(
@@ -120,6 +120,9 @@ class MyApp extends StatelessWidget {
             ),
             '/signup': (context) => const LightThemeWrapper(
               child: SignUpPage(),
+            ),
+            '/verify-email': (context) => const LightThemeWrapper(
+              child: VerifyEmailPage(),
             ),
             '/create-profile': (context) => const LightThemeWrapper(
               child: CreateProfilePage(),
@@ -224,13 +227,24 @@ class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
 
   Future<String> getStartRoute() async {
-    final user = FirebaseAuth.instance.currentUser;
+    User? user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
       return '/login';
     }
 
     try {
+      await user.reload();
+      user = FirebaseAuth.instance.currentUser;
+
+      if (user == null) {
+        return '/login';
+      }
+
+      if (user.emailVerified == false) {
+        return '/verify-email';
+      }
+
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
@@ -249,10 +263,20 @@ class AuthGate extends StatelessWidget {
         return '/login';
       }
 
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+        'emailVerified': true,
+        'isOnline': true,
+      });
+
       final role = data['role']?.toString().trim().toLowerCase() ?? 'user';
+      final profileCompleted = data['profileCompleted'] == true;
 
       if (role == 'admin' || role == 'superadmin') {
         return '/admin/dashboard';
+      }
+
+      if (profileCompleted == false) {
+        return '/create-profile';
       }
 
       return '/post';

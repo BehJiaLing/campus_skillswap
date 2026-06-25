@@ -16,10 +16,18 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   final _customCourseController = TextEditingController();
   final _skillsController = TextEditingController();
 
+  String? _selectedCampus;
   String? _selectedCourse;
 
   bool isLoading = true;
   bool isSaving = false;
+
+  final List<String> campusOptions = [
+    'INTI International University',
+    'INTI International College Subang',
+    'INTI International College Penang',
+    'INTI College Sabah',
+  ];
 
   final List<String> courseOptions = [
     'Bachelor of Computer Science',
@@ -30,7 +38,6 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     'Bachelor of Mass Communication',
     'Bachelor of Psychology',
     'Bachelor of Biotechnology',
-
     'Diploma in Computer Science',
     'Diploma in Information Technology',
     'Diploma in Business',
@@ -42,12 +49,10 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     'Diploma in Digital Media',
     'Diploma in Mechanical Engineering',
     'Diploma in Civil Engineering',
-
     'Foundation in Science',
     'Foundation in Business',
     'Foundation in Arts',
     'A-Level',
-
     'Other',
   ];
 
@@ -91,12 +96,23 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       final data = doc.data();
 
       if (data != null) {
-        final name = data['name']?.toString() ?? '';
+        final name = data['name']?.toString() ??
+            data['fullName']?.toString() ??
+            '';
+
+        final campus = data['campus']?.toString() ??
+            data['school']?.toString() ??
+            '';
+
         final course = data['course']?.toString() ?? '';
         final skills = readSkills(data['skills']);
 
         _nameController.text = name;
         _skillsController.text = skills.join(', ');
+
+        if (campusOptions.contains(campus)) {
+          _selectedCampus = campus;
+        }
 
         if (courseOptions.contains(course)) {
           _selectedCourse = course;
@@ -128,9 +144,16 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       return;
     }
 
+    final campus = _selectedCampus?.trim();
+
     final course = _selectedCourse == 'Other'
         ? _customCourseController.text.trim()
         : _selectedCourse?.trim();
+
+    if (campus == null || campus.isEmpty) {
+      showMessage('Please select your campus / branch.');
+      return;
+    }
 
     if (course == null || course.isEmpty) {
       showMessage('Please select or enter your course.');
@@ -150,7 +173,9 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
 
       await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
         'name': _nameController.text.trim(),
-        'school': 'INTI College',
+        'fullName': _nameController.text.trim(),
+        'campus': campus,
+        'school': campus,
         'course': course,
         'skills': skills,
         'profileCompleted': true,
@@ -236,6 +261,37 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
           fontSize: 14,
         ),
       ),
+    );
+  }
+
+  Widget campusDropdown() {
+    return DropdownButtonFormField<String>(
+      value: _selectedCampus,
+      isExpanded: true,
+      decoration: inputDecoration(
+        hintText: 'Select your campus / branch',
+      ),
+      items: campusOptions.map((campus) {
+        return DropdownMenuItem<String>(
+          value: campus,
+          child: Text(
+            campus,
+            overflow: TextOverflow.ellipsis,
+          ),
+        );
+      }).toList(),
+      validator: (value) {
+        if (value == null || value.trim().isEmpty) {
+          return 'Please select your campus / branch';
+        }
+
+        return null;
+      },
+      onChanged: (value) {
+        setState(() {
+          _selectedCampus = value;
+        });
+      },
     );
   }
 
@@ -359,6 +415,13 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                     hintText: 'Your full name',
                   ),
                 ),
+
+                const SizedBox(height: 25),
+
+                label("Campus / Branch"),
+                const SizedBox(height: 8),
+
+                campusDropdown(),
 
                 const SizedBox(height: 25),
 

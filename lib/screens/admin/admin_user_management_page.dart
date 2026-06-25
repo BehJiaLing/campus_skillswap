@@ -94,6 +94,16 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
     return (data['email'] ?? 'No Email').toString();
   }
 
+  String _getCampus(Map<String, dynamic> data) {
+    final campus = (data['campus'] ?? data['school'] ?? '').toString().trim();
+
+    if (campus.isEmpty || campus == 'INTI College') {
+      return 'No campus';
+    }
+
+    return campus;
+  }
+
   String _getRole(Map<String, dynamic> data) {
     return (data['role'] ?? 'user').toString().trim().toLowerCase();
   }
@@ -134,26 +144,14 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
   }
 
   String _roleLabel(String role) {
-    if (role == 'superadmin') {
-      return 'SUPER ADMIN';
-    }
-
-    if (role == 'admin') {
-      return 'ADMIN';
-    }
-
+    if (role == 'superadmin') return 'SUPER ADMIN';
+    if (role == 'admin') return 'ADMIN';
     return 'USER';
   }
 
   Color _roleColor(String role) {
-    if (role == 'superadmin') {
-      return purple;
-    }
-
-    if (role == 'admin') {
-      return navy;
-    }
-
+    if (role == 'superadmin') return purple;
+    if (role == 'admin') return navy;
     return green;
   }
 
@@ -167,11 +165,13 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
   bool _matchesSearch(Map<String, dynamic> data) {
     final name = _getName(data).toLowerCase();
     final email = _getEmail(data).toLowerCase();
+    final campus = _getCampus(data).toLowerCase();
     final skills = _getSkills(data).toLowerCase();
     final course = _getCourse(data).toLowerCase();
 
     return name.contains(searchText) ||
         email.contains(searchText) ||
+        campus.contains(searchText) ||
         skills.contains(searchText) ||
         course.contains(searchText);
   }
@@ -180,13 +180,8 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
     final role = _getRole(data);
     final suspended = _isSuspended(data);
 
-    if (selectedFilter == 'Active') {
-      return suspended == false;
-    }
-
-    if (selectedFilter == 'Deactivated') {
-      return suspended == true;
-    }
+    if (selectedFilter == 'Active') return suspended == false;
+    if (selectedFilter == 'Deactivated') return suspended == true;
 
     if (isSuperAdmin && selectedFilter == 'Admin') {
       return role == 'admin' || role == 'superadmin';
@@ -256,15 +251,11 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(context, false);
-              },
+              onPressed: () => Navigator.pop(context, false),
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context, true);
-              },
+              onPressed: () => Navigator.pop(context, true),
               style: ElevatedButton.styleFrom(
                 backgroundColor: red,
                 foregroundColor: Colors.white,
@@ -292,6 +283,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
         'deletedUserUid': uid,
         'deletedUserName': _getName(userData),
         'deletedUserEmail': _getEmail(userData),
+        'deletedUserCampus': _getCampus(userData),
         'deletedUserCourse': _getCourse(userData),
         'deletedUserSkills': _getSkills(userData),
         'deletedUserRole': _getRole(userData),
@@ -356,11 +348,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
       selectedColor: isDark ? const Color(0xFF312E81) : navy,
       backgroundColor: isDark ? darkCard : Colors.white,
       labelStyle: TextStyle(
-        color: selected
-            ? Colors.white
-            : isDark
-            ? Colors.white70
-            : navy,
+        color: selected ? Colors.white : isDark ? Colors.white70 : navy,
         fontWeight: FontWeight.bold,
       ),
       side: BorderSide(
@@ -407,29 +395,20 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
               fontWeight: FontWeight.bold,
             ),
           ),
-
           const Spacer(),
-
           TextButton(
-            onPressed: () {
-              _selectAllVisible(visibleDocs);
-            },
+            onPressed: () => _selectAllVisible(visibleDocs),
             child: const Text(
               'Select All',
               style: TextStyle(color: Colors.white),
             ),
           ),
-
           IconButton(
-            onPressed: selectedUsers.isEmpty
-                ? null
-                : () {
-              _deleteUsers(selectedUsers);
-            },
+            onPressed:
+            selectedUsers.isEmpty ? null : () => _deleteUsers(selectedUsers),
             icon: const Icon(Icons.delete_outline),
             color: Colors.white,
           ),
-
           IconButton(
             onPressed: _clearSelection,
             icon: const Icon(Icons.close),
@@ -472,9 +451,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-
               const SizedBox(height: 18),
-
               Row(
                 children: [
                   CircleAvatar(
@@ -489,9 +466,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                       ),
                     ),
                   ),
-
                   const SizedBox(width: 12),
-
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -516,15 +491,9 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                   ),
                 ],
               ),
-
               const SizedBox(height: 20),
-
-              Divider(
-                color: handleColor,
-              ),
-
+              Divider(color: handleColor),
               const SizedBox(height: 8),
-
               _sheetButton(
                 icon: Icons.edit_outlined,
                 label: 'Edit Profile',
@@ -533,7 +502,6 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                 isDark: isDark,
                 onTap: () {
                   Navigator.pop(context);
-
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -545,27 +513,21 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                   );
                 },
               ),
-
               const SizedBox(height: 8),
-
               _sheetButton(
-                icon: suspended
-                    ? Icons.check_circle_outline
-                    : Icons.block_outlined,
+                icon:
+                suspended ? Icons.check_circle_outline : Icons.block_outlined,
                 label: suspended ? 'Activate Account' : 'Deactivate Account',
                 color: orange,
-                bgColor: isDark
-                    ? const Color(0xFF292524)
-                    : const Color(0xFFFFF8E1),
+                bgColor:
+                isDark ? const Color(0xFF292524) : const Color(0xFFFFF8E1),
                 isDark: isDark,
                 onTap: () {
                   Navigator.pop(context);
                   _toggleSuspend(uid, suspended);
                 },
               ),
-
               const SizedBox(height: 8),
-
               _sheetButton(
                 icon: Icons.delete_outline,
                 label: 'Delete Account',
@@ -608,14 +570,8 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
         ),
         child: Row(
           children: [
-            Icon(
-              icon,
-              color: color,
-              size: 20,
-            ),
-
+            Icon(icon, color: color, size: 20),
             const SizedBox(width: 12),
-
             Text(
               label,
               style: TextStyle(
@@ -638,6 +594,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
       ) {
     final name = _getName(data);
     final email = _getEmail(data);
+    final campus = _getCampus(data);
     final skills = _getSkills(data);
     final course = _getCourse(data);
     final role = _getRole(data);
@@ -689,11 +646,8 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
               Checkbox(
                 value: isSelected,
                 activeColor: isDark ? const Color(0xFF818CF8) : navy,
-                onChanged: (_) {
-                  _toggleSelection(uid);
-                },
+                onChanged: (_) => _toggleSelection(uid),
               ),
-
             CircleAvatar(
               backgroundColor: avatarBg,
               backgroundImage:
@@ -705,9 +659,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
               )
                   : null,
             ),
-
             const SizedBox(width: 12),
-
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -720,7 +672,6 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                       color: textColor,
                     ),
                   ),
-
                   Text(
                     email,
                     style: TextStyle(
@@ -728,9 +679,18 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                       fontSize: 12,
                     ),
                   ),
-
                   const SizedBox(height: 4),
-
+                  Text(
+                    campus,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: subTextColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
                   Text(
                     course,
                     maxLines: 1,
@@ -740,9 +700,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                       color: subTextColor,
                     ),
                   ),
-
                   const SizedBox(height: 2),
-
                   Text(
                     skills,
                     maxLines: 1,
@@ -755,7 +713,6 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                 ],
               ),
             ),
-
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
@@ -772,7 +729,6 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                   ),
                   const SizedBox(height: 6),
                 ],
-
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,
@@ -797,9 +753,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 4),
-
                 Text(
                   selectionMode ? 'Tap to select' : 'Tap to manage',
                   style: TextStyle(
@@ -825,42 +779,26 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
       child: TextField(
         controller: searchCtrl,
-        style: TextStyle(
-          color: textColor,
-        ),
+        style: TextStyle(color: textColor),
         decoration: InputDecoration(
-          hintText: 'Search by name, email, skill, course...',
-          hintStyle: TextStyle(
-            color: hintColor,
-          ),
-          prefixIcon: Icon(
-            Icons.search,
-            color: hintColor,
-          ),
+          hintText: 'Search by name, email, campus, skill, course...',
+          hintStyle: TextStyle(color: hintColor),
+          prefixIcon: Icon(Icons.search, color: hintColor),
           suffixIcon: searchCtrl.text.isNotEmpty
               ? IconButton(
-            icon: Icon(
-              Icons.clear,
-              color: hintColor,
-            ),
-            onPressed: () {
-              searchCtrl.clear();
-            },
+            icon: Icon(Icons.clear, color: hintColor),
+            onPressed: () => searchCtrl.clear(),
           )
               : null,
           filled: true,
           fillColor: fillColor,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(
-              color: lineColor,
-            ),
+            borderSide: BorderSide(color: lineColor),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(
-              color: lineColor,
-            ),
+            borderSide: BorderSide(color: lineColor),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
@@ -944,27 +882,21 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
           ? Center(
         child: Text(
           'User not logged in.',
-          style: TextStyle(
-            color: textColor,
-          ),
+          style: TextStyle(color: textColor),
         ),
       )
           : FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         future: currentRoleFuture,
         builder: (context, roleSnapshot) {
           if (roleSnapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
+            return const Center(child: CircularProgressIndicator());
           }
 
           if (roleSnapshot.hasError) {
             return Center(
               child: Text(
                 'Error: ${roleSnapshot.error}',
-                style: TextStyle(
-                  color: textColor,
-                ),
+                style: TextStyle(color: textColor),
               ),
             );
           }
@@ -976,11 +908,8 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
           return Column(
             children: [
               _searchBox(isDark),
-
               _filterRow(isSuperAdmin, isDark),
-
               const SizedBox(height: 10),
-
               Expanded(
                 child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                   stream: _userQuery(isSuperAdmin).snapshots(),
@@ -996,9 +925,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                       return Center(
                         child: Text(
                           'Error: ${snapshot.error}',
-                          style: TextStyle(
-                            color: textColor,
-                          ),
+                          style: TextStyle(color: textColor),
                         ),
                       );
                     }
@@ -1024,9 +951,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                           _roleOrder(_getRole(bData)),
                         );
 
-                        if (roleCompare != 0) {
-                          return roleCompare;
-                        }
+                        if (roleCompare != 0) return roleCompare;
 
                         return _getName(aData).toLowerCase().compareTo(
                           _getName(bData).toLowerCase(),
@@ -1046,11 +971,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
 
                     return Column(
                       children: [
-                        _selectionBar(
-                          filteredDocs,
-                          isDark,
-                        ),
-
+                        _selectionBar(filteredDocs, isDark),
                         Expanded(
                           child: ListView.separated(
                             padding: const EdgeInsets.fromLTRB(

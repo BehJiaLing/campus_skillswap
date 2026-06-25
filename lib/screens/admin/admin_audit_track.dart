@@ -74,7 +74,6 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
 
     if (value is List) {
       if (value.isEmpty) return 'No skills';
-
       return value.map((e) => e.toString()).join(', ');
     }
 
@@ -85,15 +84,33 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
     return text;
   }
 
+  String _getCampus(Map<String, dynamic> data) {
+    final originalData = data['originalData'];
+
+    final Map<String, dynamic> originalPostData =
+    originalData is Map ? Map<String, dynamic>.from(originalData) : {};
+
+    return _text(
+      data['deletedUserCampus'] ??
+          data['campus'] ??
+          data['school'] ??
+          originalPostData['campus'] ??
+          originalPostData['school'],
+      fallback: 'No campus',
+    );
+  }
+
   bool _matchesUserSearch(Map<String, dynamic> data) {
     if (_searchText.isEmpty) return true;
 
     final name = _text(data['deletedUserName']).toLowerCase();
     final email = _text(data['deletedUserEmail']).toLowerCase();
+    final campus = _text(data['deletedUserCampus']).toLowerCase();
     final deletedBy = _text(data['deletedByEmail']).toLowerCase();
 
     return name.contains(_searchText) ||
         email.contains(_searchText) ||
+        campus.contains(_searchText) ||
         deletedBy.contains(_searchText);
   }
 
@@ -103,6 +120,7 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
       }) {
     final name = _text(data['deletedUserName'], fallback: 'No Name');
     final email = _text(data['deletedUserEmail'], fallback: 'No Email');
+    final campus = _text(data['deletedUserCampus'], fallback: 'No campus');
     final course = _text(data['deletedUserCourse'], fallback: 'No course');
     final skills = _text(data['deletedUserSkills'], fallback: 'No skills');
     final deletedBy = _text(data['deletedByEmail'], fallback: 'Unknown Admin');
@@ -121,9 +139,7 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: cardColor,
-        border: Border.all(
-          color: lineColor,
-        ),
+        border: Border.all(color: lineColor),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -138,9 +154,7 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
               size: 22,
             ),
           ),
-
           const SizedBox(width: 12),
-
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -153,9 +167,7 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
                     color: textColor,
                   ),
                 ),
-
                 const SizedBox(height: 3),
-
                 Text(
                   email,
                   style: TextStyle(
@@ -163,27 +175,20 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
                     fontSize: 12,
                   ),
                 ),
-
                 const SizedBox(height: 8),
-
+                Text(
+                  'Campus: $campus',
+                  style: TextStyle(fontSize: 12, color: textColor),
+                ),
                 Text(
                   'Course: $course',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: textColor,
-                  ),
+                  style: TextStyle(fontSize: 12, color: textColor),
                 ),
-
                 Text(
                   'Skills: $skills',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: textColor,
-                  ),
+                  style: TextStyle(fontSize: 12, color: textColor),
                 ),
-
                 const SizedBox(height: 8),
-
                 Text(
                   'Deleted by: $deletedBy',
                   style: TextStyle(
@@ -192,7 +197,6 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
                     color: textColor,
                   ),
                 ),
-
                 Text(
                   'Deleted at: $deletedAt',
                   style: TextStyle(
@@ -200,7 +204,6 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
                     fontSize: 12,
                   ),
                 ),
-
                 if (isRestored) ...[
                   const SizedBox(height: 8),
                   Text(
@@ -219,9 +222,7 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
                     ),
                   ),
                 ],
-
                 const SizedBox(height: 8),
-
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,
@@ -297,6 +298,8 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
       fallback: 'Unknown user',
     );
 
+    final campus = _getCampus(data);
+
     final course = _text(
       data['course'] ??
           originalPostData['course'] ??
@@ -329,9 +332,7 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: cardColor,
-        border: Border.all(
-          color: lineColor,
-        ),
+        border: Border.all(color: lineColor),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -346,9 +347,7 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
               size: 22,
             ),
           ),
-
           const SizedBox(width: 12),
-
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -361,9 +360,7 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
                     color: textColor,
                   ),
                 ),
-
                 const SizedBox(height: 3),
-
                 Text(
                   description,
                   maxLines: 2,
@@ -373,43 +370,28 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
                     fontSize: 12,
                   ),
                 ),
-
                 const SizedBox(height: 8),
-
                 Text(
                   'Category: $category',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: textColor,
-                  ),
+                  style: TextStyle(fontSize: 12, color: textColor),
                 ),
-
                 Text(
                   'Posted by: $postedBy',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: textColor,
-                  ),
+                  style: TextStyle(fontSize: 12, color: textColor),
                 ),
-
+                Text(
+                  'Campus: $campus',
+                  style: TextStyle(fontSize: 12, color: textColor),
+                ),
                 Text(
                   'Course: $course',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: textColor,
-                  ),
+                  style: TextStyle(fontSize: 12, color: textColor),
                 ),
-
                 Text(
                   'Skills: $skills',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: textColor,
-                  ),
+                  style: TextStyle(fontSize: 12, color: textColor),
                 ),
-
                 const SizedBox(height: 8),
-
                 Text(
                   'Deleted by: $deletedBy',
                   style: TextStyle(
@@ -418,7 +400,6 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
                     color: textColor,
                   ),
                 ),
-
                 Text(
                   'Deleted at: $deletedAt',
                   style: TextStyle(
@@ -426,9 +407,7 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
                     fontSize: 12,
                   ),
                 ),
-
                 const SizedBox(height: 8),
-
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,
@@ -472,9 +451,7 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
       decoration: BoxDecoration(
         color: cardColor,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: lineColor,
-        ),
+        border: Border.all(color: lineColor),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.04),
@@ -511,18 +488,14 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
                   ],
                 ),
               ),
-
               const SizedBox(width: 12),
-
               Expanded(
                 flex: 5,
                 child: SizedBox(
                   height: 40,
                   child: TextField(
                     controller: _searchCtrl,
-                    style: TextStyle(
-                      color: textColor,
-                    ),
+                    style: TextStyle(color: textColor),
                     decoration: InputDecoration(
                       hintText: 'Search deleted accounts...',
                       hintStyle: TextStyle(
@@ -554,15 +527,11 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
                       ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(
-                          color: lineColor,
-                        ),
+                        borderSide: BorderSide(color: lineColor),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(
-                          color: lineColor,
-                        ),
+                        borderSide: BorderSide(color: lineColor),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -577,13 +546,8 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
               ),
             ],
           ),
-
           const SizedBox(height: 16),
-
-          Divider(
-            color: lineColor,
-          ),
-
+          Divider(color: lineColor),
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('deleted_users_history')
@@ -595,9 +559,7 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
                   padding: const EdgeInsets.all(16),
                   child: Text(
                     'Error: ${snapshot.error}',
-                    style: const TextStyle(
-                      color: Colors.red,
-                    ),
+                    style: const TextStyle(color: Colors.red),
                   ),
                 );
               }
@@ -671,9 +633,7 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
       decoration: BoxDecoration(
         color: cardColor,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: lineColor,
-        ),
+        border: Border.all(color: lineColor),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.04),
@@ -693,7 +653,6 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
               color: textColor,
             ),
           ),
-
           Text(
             'Deleted community skill swap listings',
             style: TextStyle(
@@ -701,13 +660,8 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
               color: subTextColor,
             ),
           ),
-
           const SizedBox(height: 16),
-
-          Divider(
-            color: lineColor,
-          ),
-
+          Divider(color: lineColor),
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('deleted_posts_history')
@@ -719,9 +673,7 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
                   padding: const EdgeInsets.all(16),
                   child: Text(
                     'Error: ${snapshot.error}',
-                    style: const TextStyle(
-                      color: Colors.red,
-                    ),
+                    style: const TextStyle(color: Colors.red),
                   ),
                 );
               }
@@ -811,15 +763,9 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _deletedUsersSection(
-              isDark: isDark,
-            ),
-
+            _deletedUsersSection(isDark: isDark),
             const SizedBox(height: 24),
-
-            _deletedPostsSection(
-              isDark: isDark,
-            ),
+            _deletedPostsSection(isDark: isDark),
           ],
         ),
       ),

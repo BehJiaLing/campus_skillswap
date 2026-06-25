@@ -235,6 +235,8 @@ class _SignUpPageState extends State<SignUpPage> {
         'role': 'user',
         'profileCompleted': false,
         'emailVerified': false,
+        'isOnline': false,
+        'suspended': false,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -247,15 +249,9 @@ class _SignUpPageState extends State<SignUpPage> {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      await FirebaseAuth.instance.signOut();
-
       if (!mounted) return;
 
-      showMessage(
-        'Account created. Please check your email and spam folder to verify your account.',
-      );
-
-      Navigator.pushReplacementNamed(context, '/login');
+      Navigator.pushReplacementNamed(context, '/verify-email');
     } on FirebaseAuthException catch (e) {
       if (e.code == 'email-already-in-use') {
         setState(() {
@@ -511,8 +507,9 @@ class _SignUpPageState extends State<SignUpPage> {
 
             Center(
               child: TextButton(
-                onPressed: () =>
-                    Navigator.pushReplacementNamed(context, '/login'),
+                onPressed: _loading
+                    ? null
+                    : () => Navigator.pushReplacementNamed(context, '/login'),
                 child: Text(
                   'Already have an account? Login',
                   style: TextStyle(color: navy),

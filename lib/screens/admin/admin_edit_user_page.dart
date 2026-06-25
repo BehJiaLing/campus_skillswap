@@ -21,6 +21,7 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
   final customCourseCtrl = TextEditingController();
   final skillCtrl = TextEditingController();
 
+  String? selectedCampus;
   String? selectedCourse;
   String selectedRole = 'user';
 
@@ -38,6 +39,13 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
   final Color darkBorder = const Color(0xFF374151);
   final Color darkField = const Color(0xFF111827);
   final Color darkPurple = const Color(0xFF312E81);
+
+  final List<String> campusOptions = [
+    'INTI International University',
+    'INTI International College Subang',
+    'INTI International College Penang',
+    'INTI College Sabah',
+  ];
 
   final List<String> courseOptions = [
     'Bachelor of Computer Science',
@@ -77,6 +85,14 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
     nameCtrl.text = widget.userData['name']?.toString() ??
         widget.userData['fullName']?.toString() ??
         '';
+
+    final savedCampus = widget.userData['campus']?.toString() ??
+        widget.userData['school']?.toString() ??
+        '';
+
+    if (savedCampus.isNotEmpty && campusOptions.contains(savedCampus)) {
+      selectedCampus = savedCampus;
+    }
 
     final savedCourse = widget.userData['course']?.toString() ??
         widget.userData['studentCourse']?.toString() ??
@@ -122,12 +138,10 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
 
     if (currentUser == null) {
       if (!mounted) return;
-
       setState(() {
         checkingRole = false;
         isSuperAdmin = false;
       });
-
       return;
     }
 
@@ -160,6 +174,7 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
   Future<void> _saveProfile() async {
     final name = nameCtrl.text.trim();
     final skillsText = skillCtrl.text.trim();
+    final campus = selectedCampus?.trim();
 
     final course = selectedCourse == 'Other'
         ? customCourseCtrl.text.trim()
@@ -167,6 +182,11 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
 
     if (name.isEmpty) {
       showMessage('Name cannot be empty.');
+      return;
+    }
+
+    if (campus == null || campus.isEmpty) {
+      showMessage('Please select a campus / branch.');
       return;
     }
 
@@ -201,8 +221,9 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
       final Map<String, dynamic> updateData = {
         'name': name,
         'fullName': name,
+        'campus': campus,
+        'school': campus,
         'course': course,
-        'school': 'INTI College',
         'education': FieldValue.delete(),
         'skills': skills,
         'profileCompleted': true,
@@ -277,27 +298,19 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
       child: TextField(
         controller: controller,
         maxLines: maxLines,
-        style: TextStyle(
-          color: textColor,
-        ),
+        style: TextStyle(color: textColor),
         decoration: InputDecoration(
           labelText: label,
-          labelStyle: TextStyle(
-            color: hintColor,
-          ),
+          labelStyle: TextStyle(color: hintColor),
           filled: true,
           fillColor: fillColor,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(
-              color: lineColor,
-            ),
+            borderSide: BorderSide(color: lineColor),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(
-              color: lineColor,
-            ),
+            borderSide: BorderSide(color: lineColor),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
@@ -311,9 +324,59 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
     );
   }
 
-  Widget _courseDropdown({
-    required bool isDark,
-  }) {
+  Widget _campusDropdown({required bool isDark}) {
+    final fillColor = isDark ? darkCard : Colors.white;
+    final lineColor = isDark ? darkBorder : border;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final hintColor = isDark ? Colors.white60 : Colors.grey;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: DropdownButtonFormField<String>(
+        initialValue: selectedCampus,
+        isExpanded: true,
+        dropdownColor: fillColor,
+        style: TextStyle(color: textColor, fontSize: 14),
+        decoration: InputDecoration(
+          labelText: 'Campus / Branch',
+          labelStyle: TextStyle(color: hintColor),
+          filled: true,
+          fillColor: fillColor,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: lineColor),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: lineColor),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(
+              color: isDark ? const Color(0xFF818CF8) : navy,
+              width: 1.4,
+            ),
+          ),
+        ),
+        items: campusOptions.map((campus) {
+          return DropdownMenuItem<String>(
+            value: campus,
+            child: Text(
+              campus,
+              overflow: TextOverflow.ellipsis,
+            ),
+          );
+        }).toList(),
+        onChanged: (value) {
+          setState(() {
+            selectedCampus = value;
+          });
+        },
+      ),
+    );
+  }
+
+  Widget _courseDropdown({required bool isDark}) {
     final fillColor = isDark ? darkCard : Colors.white;
     final lineColor = isDark ? darkBorder : border;
     final textColor = isDark ? Colors.white : Colors.black87;
@@ -325,28 +388,19 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
         initialValue: selectedCourse,
         isExpanded: true,
         dropdownColor: fillColor,
-        style: TextStyle(
-          color: textColor,
-          fontSize: 14,
-        ),
+        style: TextStyle(color: textColor, fontSize: 14),
         decoration: InputDecoration(
           labelText: 'Course',
-          labelStyle: TextStyle(
-            color: hintColor,
-          ),
+          labelStyle: TextStyle(color: hintColor),
           filled: true,
           fillColor: fillColor,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(
-              color: lineColor,
-            ),
+            borderSide: BorderSide(color: lineColor),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(
-              color: lineColor,
-            ),
+            borderSide: BorderSide(color: lineColor),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
@@ -378,9 +432,7 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
     );
   }
 
-  Widget _roleDropdown({
-    required bool isDark,
-  }) {
+  Widget _roleDropdown({required bool isDark}) {
     final fillColor = isDark ? darkCard : Colors.white;
     final lineColor = isDark ? darkBorder : border;
     final textColor = isDark ? Colors.white : Colors.black87;
@@ -391,28 +443,19 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
       child: DropdownButtonFormField<String>(
         initialValue: selectedRole,
         dropdownColor: fillColor,
-        style: TextStyle(
-          color: textColor,
-          fontSize: 14,
-        ),
+        style: TextStyle(color: textColor, fontSize: 14),
         decoration: InputDecoration(
           labelText: 'Role',
-          labelStyle: TextStyle(
-            color: hintColor,
-          ),
+          labelStyle: TextStyle(color: hintColor),
           filled: true,
           fillColor: fillColor,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(
-              color: lineColor,
-            ),
+            borderSide: BorderSide(color: lineColor),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(
-              color: lineColor,
-            ),
+            borderSide: BorderSide(color: lineColor),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
@@ -423,18 +466,11 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
           ),
         ),
         items: const [
-          DropdownMenuItem(
-            value: 'user',
-            child: Text('User'),
-          ),
-          DropdownMenuItem(
-            value: 'admin',
-            child: Text('Admin'),
-          ),
+          DropdownMenuItem(value: 'user', child: Text('User')),
+          DropdownMenuItem(value: 'admin', child: Text('Admin')),
         ],
         onChanged: (value) {
           if (value == null) return;
-
           setState(() {
             selectedRole = value;
           });
@@ -443,9 +479,7 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
     );
   }
 
-  Widget _lockedSuperAdminRoleBox({
-    required bool isDark,
-  }) {
+  Widget _lockedSuperAdminRoleBox({required bool isDark}) {
     final fillColor = isDark ? darkField : Colors.grey.shade200;
     final lineColor = isDark ? darkBorder : border;
     final textColor = isDark ? Colors.white70 : Colors.black54;
@@ -456,14 +490,10 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
       child: TextFormField(
         initialValue: 'Super Admin',
         enabled: false,
-        style: TextStyle(
-          color: textColor,
-        ),
+        style: TextStyle(color: textColor),
         decoration: InputDecoration(
           labelText: 'Role',
-          labelStyle: TextStyle(
-            color: hintColor,
-          ),
+          labelStyle: TextStyle(color: hintColor),
           filled: true,
           fillColor: fillColor,
           suffixIcon: Icon(
@@ -472,15 +502,11 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
           ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(
-              color: lineColor,
-            ),
+            borderSide: BorderSide(color: lineColor),
           ),
           disabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(
-              color: lineColor,
-            ),
+            borderSide: BorderSide(color: lineColor),
           ),
         ),
       ),
@@ -507,9 +533,7 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
         foregroundColor: Colors.white,
       ),
       body: checkingRole
-          ? const Center(
-        child: CircularProgressIndicator(),
-      )
+          ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Container(
@@ -518,9 +542,7 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
           decoration: BoxDecoration(
             color: cardColor,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: lineColor,
-            ),
+            border: Border.all(color: lineColor),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(
@@ -566,9 +588,9 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
                 isDark: isDark,
               ),
 
-              _courseDropdown(
-                isDark: isDark,
-              ),
+              _campusDropdown(isDark: isDark),
+
+              _courseDropdown(isDark: isDark),
 
               if (selectedCourse == 'Other')
                 _input(
@@ -585,13 +607,9 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
               ),
 
               if (isSuperAdmin && targetIsSuperAdmin)
-                _lockedSuperAdminRoleBox(
-                  isDark: isDark,
-                )
+                _lockedSuperAdminRoleBox(isDark: isDark)
               else if (isSuperAdmin)
-                _roleDropdown(
-                  isDark: isDark,
-                ),
+                _roleDropdown(isDark: isDark),
 
               const SizedBox(height: 14),
 

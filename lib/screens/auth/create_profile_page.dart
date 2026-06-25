@@ -14,6 +14,7 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
   final _customCourseCtrl = TextEditingController();
   final _skillCtrl = TextEditingController();
 
+  String? _selectedCampus;
   String? _selectedCourse;
   bool _loading = false;
 
@@ -24,6 +25,13 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
   final Color bg = const Color(0xFFF5F5FA);
   final Color border = const Color(0xFFE0E0F0);
 
+  final List<String> campusOptions = [
+    'INTI International University',
+    'INTI International College Subang',
+    'INTI International College Penang',
+    'INTI College Sabah',
+  ];
+
   final List<String> courseOptions = [
     'Bachelor of Computer Science',
     'Bachelor of Information Technology',
@@ -33,7 +41,6 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
     'Bachelor of Mass Communication',
     'Bachelor of Psychology',
     'Bachelor of Biotechnology',
-
     'Diploma in Computer Science',
     'Diploma in Information Technology',
     'Diploma in Business',
@@ -45,12 +52,10 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
     'Diploma in Digital Media',
     'Diploma in Mechanical Engineering',
     'Diploma in Civil Engineering',
-
     'Foundation in Science',
     'Foundation in Business',
     'Foundation in Arts',
     'A-Level',
-
     'Other',
   ];
 
@@ -58,11 +63,18 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
     final name = _nameCtrl.text.trim();
     final skillsText = _skillCtrl.text.trim();
 
+    final campus = _selectedCampus?.trim();
+
     final course = _selectedCourse == 'Other'
         ? _customCourseCtrl.text.trim()
         : _selectedCourse?.trim();
 
-    if (name.isEmpty || course == null || course.isEmpty || skillsText.isEmpty) {
+    if (name.isEmpty ||
+        campus == null ||
+        campus.isEmpty ||
+        course == null ||
+        course.isEmpty ||
+        skillsText.isEmpty) {
       showMessage('Please fill in all fields.');
       return;
     }
@@ -87,12 +99,14 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
         'uid': user.uid,
         'email': user.email,
         'name': name,
+        'campus': campus,
         'course': course,
-        'school': 'INTI College',
+        'school': campus,
         'skills': skillsList,
         'photoUrl': '',
         'role': 'user',
         'profileCompleted': true,
+        'emailVerified': user.emailVerified,
         'suspended': false,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
@@ -155,6 +169,48 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
           borderSide: BorderSide(color: navy, width: 1.5),
         ),
       ),
+    );
+  }
+
+  Widget _campusDropdown() {
+    return DropdownButtonFormField<String>(
+      value: _selectedCampus,
+      isExpanded: true,
+      decoration: InputDecoration(
+        hintText: 'Select your campus / branch',
+        filled: true,
+        fillColor: bg,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: navy, width: 1.5),
+        ),
+      ),
+      items: campusOptions.map((campus) {
+        return DropdownMenuItem<String>(
+          value: campus,
+          child: Text(
+            campus,
+            overflow: TextOverflow.ellipsis,
+          ),
+        );
+      }).toList(),
+      onChanged: (value) {
+        setState(() {
+          _selectedCampus = value;
+        });
+      },
     );
   }
 
@@ -258,6 +314,12 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
               controller: _nameCtrl,
               hintText: 'Your full name',
             ),
+
+            const SizedBox(height: 14),
+
+            _label('Campus / Branch'),
+            const SizedBox(height: 6),
+            _campusDropdown(),
 
             const SizedBox(height: 14),
 
