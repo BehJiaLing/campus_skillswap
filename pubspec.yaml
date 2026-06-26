@@ -18,6 +18,8 @@ dependencies:
   cloud_firestore: ^6.4.1
   firebase_storage: ^13.4.1
 
+  shared_preferences: ^2.2.3
+
   image_picker: ^1.1.2
 
 dev_dependencies:
