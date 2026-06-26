@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class AdminAuditTrackPage extends StatefulWidget {
   const AdminAuditTrackPage({super.key});
@@ -42,11 +43,8 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
 
   String _text(dynamic value, {String fallback = '-'}) {
     if (value == null) return fallback;
-
     final text = value.toString().trim();
-
     if (text.isEmpty) return fallback;
-
     return text;
   }
 
@@ -55,11 +53,9 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
 
     if (value is Timestamp) {
       final date = value.toDate();
-
       final day = date.day.toString().padLeft(2, '0');
       final month = date.month.toString().padLeft(2, '0');
       final year = date.year.toString();
-
       final hour = date.hour.toString().padLeft(2, '0');
       final minute = date.minute.toString().padLeft(2, '0');
 
@@ -78,10 +74,120 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
     }
 
     final text = value.toString().trim();
-
     if (text.isEmpty) return 'No skills';
 
     return text;
+  }
+
+  Future<void> _restoreUser({
+    required String deletedDocId,
+    required Map<String, dynamic> data,
+  }) async {
+    try {
+      final currentAdmin = FirebaseAuth.instance.currentUser;
+
+      final userId = _text(
+        data['deletedUserId'] ?? data['uid'] ?? data['userId'] ?? deletedDocId,
+        fallback: '',
+      );
+
+      if (userId.isEmpty) {
+        throw 'Missing user ID. Cannot restore user.';
+      }
+
+      await FirebaseFirestore.instance.collection('users').doc(userId).set({
+        'uid': userId,
+        'name': _text(data['deletedUserName'], fallback: 'No Name'),
+        'email': _text(data['deletedUserEmail'], fallback: 'No Email'),
+        'campus': _text(data['deletedUserCampus'], fallback: 'INTI'),
+        'course': _text(data['deletedUserCourse'], fallback: ''),
+        'skills': data['deletedUserSkills'] ?? [],
+        'role': data['deletedUserRole'] ?? 'user',
+        'status': 'active',
+        'isSuspended': false,
+        'restoredAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      await FirebaseFirestore.instance
+          .collection('deleted_users_history')
+          .doc(deletedDocId)
+          .update({
+        'isRestored': true,
+        'restoredAt': FieldValue.serverTimestamp(),
+        'restoredByEmail': currentAdmin?.email ?? 'Unknown Admin',
+      });
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('User restored successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Restore failed: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _confirmRestoreUser({
+    required String deletedDocId,
+    required Map<String, dynamic> data,
+  }) async {
+    final name = _text(data['deletedUserName'], fallback: 'this user');
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Restore User'),
+          content: Text('Are you sure you want to restore $name?'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, false);
+              },
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(context, true);
+              },
+              icon: const Icon(Icons.restore),
+              label: const Text('Restore'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm == true) {
+      await _restoreUser(
+        deletedDocId: deletedDocId,
+        data: data,
+      );
+    }
+  }
+
+  bool _matchesUserSearch(Map<String, dynamic> data) {
+    if (_searchText.isEmpty) return true;
+
+    final name = _text(data['deletedUserName']).toLowerCase();
+    final email = _text(data['deletedUserEmail']).toLowerCase();
+    final campus = _text(data['deletedUserCampus']).toLowerCase();
+    final deletedBy = _text(data['deletedByEmail']).toLowerCase();
+
+    return name.contains(_searchText) ||
+        email.contains(_searchText) ||
+        campus.contains(_searchText) ||
+        deletedBy.contains(_searchText);
   }
 
   String _getCampus(Map<String, dynamic> data) {
@@ -100,21 +206,8 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
     );
   }
 
-  bool _matchesUserSearch(Map<String, dynamic> data) {
-    if (_searchText.isEmpty) return true;
-
-    final name = _text(data['deletedUserName']).toLowerCase();
-    final email = _text(data['deletedUserEmail']).toLowerCase();
-    final campus = _text(data['deletedUserCampus']).toLowerCase();
-    final deletedBy = _text(data['deletedByEmail']).toLowerCase();
-
-    return name.contains(_searchText) ||
-        email.contains(_searchText) ||
-        campus.contains(_searchText) ||
-        deletedBy.contains(_searchText);
-  }
-
   Widget _deletedUserCard(
+      String deletedDocId,
       Map<String, dynamic> data, {
         required bool isDark,
       }) {
@@ -122,7 +215,7 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
     final email = _text(data['deletedUserEmail'], fallback: 'No Email');
     final campus = _text(data['deletedUserCampus'], fallback: 'No campus');
     final course = _text(data['deletedUserCourse'], fallback: 'No course');
-    final skills = _text(data['deletedUserSkills'], fallback: 'No skills');
+    final skills = _skillsText(data['deletedUserSkills']);
     final deletedBy = _text(data['deletedByEmail'], fallback: 'Unknown Admin');
     final deletedAt = _formatDate(data['deletedAt']);
 
@@ -222,30 +315,55 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
                     ),
                   ),
                 ],
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isRestored
-                        ? isDark
-                        ? const Color(0xFF102A1D)
-                        : const Color(0xFFE8F5E9)
-                        : isDark
-                        ? const Color(0xFF2F1518)
-                        : const Color(0xFFFFEBEE),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    isRestored ? 'Restored' : 'Deleted',
-                    style: TextStyle(
-                      color: isRestored ? green : red,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 11,
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isRestored
+                            ? isDark
+                            ? const Color(0xFF102A1D)
+                            : const Color(0xFFE8F5E9)
+                            : isDark
+                            ? const Color(0xFF2F1518)
+                            : const Color(0xFFFFEBEE),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        isRestored ? 'Restored' : 'Deleted',
+                        style: TextStyle(
+                          color: isRestored ? green : red,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 10),
+                    if (!isRestored)
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          _confirmRestoreUser(
+                            deletedDocId: deletedDocId,
+                            data: data,
+                          );
+                        },
+                        icon: const Icon(Icons.restore, size: 16),
+                        label: const Text('Restore'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: green,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          textStyle: const TextStyle(fontSize: 12),
+                        ),
+                      ),
+                  ],
                 ),
               ],
             ),
@@ -607,6 +725,7 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
                   final data = doc.data() as Map<String, dynamic>;
 
                   return _deletedUserCard(
+                    doc.id,
                     data,
                     isDark: isDark,
                   );
@@ -742,7 +861,6 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     final pageBg = isDark ? darkBg : bg;
 
     return Scaffold(
