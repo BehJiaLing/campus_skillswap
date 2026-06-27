@@ -27,6 +27,8 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
 
   final TextEditingController searchController = TextEditingController();
 
+  String sortOrder = 'latest';
+
   @override
   void dispose() {
     searchController.dispose();
@@ -54,15 +56,11 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(context, false);
-              },
+              onPressed: () => Navigator.pop(context, false),
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context, true);
-              },
+              onPressed: () => Navigator.pop(context, true),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.redAccent,
                 foregroundColor: Colors.white,
@@ -79,9 +77,8 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
     try {
       final admin = FirebaseAuth.instance.currentUser;
 
-      final postRef = FirebaseFirestore.instance
-          .collection('posts')
-          .doc(post.postId);
+      final postRef =
+      FirebaseFirestore.instance.collection('posts').doc(post.postId);
 
       final postSnapshot = await postRef.get();
       final originalData = postSnapshot.data() ?? {};
@@ -97,7 +94,6 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
         'title': post.title,
         'postTitle': post.title,
         'description': post.description,
-        'category': post.category,
         'postedBy': post.postedBy,
         'ownerUid': post.ownerUid,
         'ownerEmail': post.ownerEmail,
@@ -107,6 +103,7 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
         'deletedByUid': admin?.uid,
         'deletedByEmail': admin?.email,
         'restored': false,
+        'isRestored': false,
         'originalData': originalData,
       });
 
@@ -159,15 +156,11 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(context, false);
-              },
+              onPressed: () => Navigator.pop(context, false),
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context, true);
-              },
+              onPressed: () => Navigator.pop(context, true),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange,
                 foregroundColor: Colors.white,
@@ -184,9 +177,8 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
     try {
       final admin = FirebaseAuth.instance.currentUser;
 
-      final postRef = FirebaseFirestore.instance
-          .collection('posts')
-          .doc(post.postId);
+      final postRef =
+      FirebaseFirestore.instance.collection('posts').doc(post.postId);
 
       await postRef.set({
         'isBanned': true,
@@ -202,27 +194,26 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
           .collection('banned_posts_history')
           .doc(post.postId)
           .set({
-            'postId': post.postId,
-            'title': post.title,
-            'postTitle': post.title,
-            'description': post.description,
-            'category': post.category,
-            'postedBy': post.postedBy,
-            'ownerUid': post.ownerUid,
-            'ownerEmail': post.ownerEmail,
-            'course': post.course,
-            'skills': post.skills,
-            'bannedAt': FieldValue.serverTimestamp(),
-            'bannedByUid': admin?.uid,
-            'bannedByEmail': admin?.email,
-            'status': 'banned',
-          }, SetOptions(merge: true));
+        'postId': post.postId,
+        'title': post.title,
+        'postTitle': post.title,
+        'description': post.description,
+        'postedBy': post.postedBy,
+        'ownerUid': post.ownerUid,
+        'ownerEmail': post.ownerEmail,
+        'course': post.course,
+        'skills': post.skills,
+        'bannedAt': FieldValue.serverTimestamp(),
+        'bannedByUid': admin?.uid,
+        'bannedByEmail': admin?.email,
+        'status': 'banned',
+      }, SetOptions(merge: true));
 
       if (!context.mounted) return;
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Post banned successfully')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Post banned successfully')),
+      );
     } catch (e) {
       if (!context.mounted) return;
 
@@ -233,6 +224,14 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
         ),
       );
     }
+  }
+
+  DateTime getDateTime(dynamic value) {
+    if (value is Timestamp) {
+      return value.toDate();
+    }
+
+    return DateTime(2000);
   }
 
   String formatDate(dynamic value) {
@@ -247,10 +246,10 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
   }
 
   String getText(
-    Map<String, dynamic> data,
-    List<String> keys,
-    String fallback,
-  ) {
+      Map<String, dynamic> data,
+      List<String> keys,
+      String fallback,
+      ) {
     for (final key in keys) {
       if (data[key] != null && data[key].toString().trim().isNotEmpty) {
         return data[key].toString();
@@ -302,9 +301,9 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
   }
 
   String getCourse(
-    Map<String, dynamic> postData,
-    Map<String, dynamic> userData,
-  ) {
+      Map<String, dynamic> postData,
+      Map<String, dynamic> userData,
+      ) {
     final postCourse = getText(postData, [
       'course',
       'studentCourse',
@@ -327,9 +326,9 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
   }
 
   List<String> getSkills(
-    Map<String, dynamic> postData,
-    Map<String, dynamic> userData,
-  ) {
+      Map<String, dynamic> postData,
+      Map<String, dynamic> userData,
+      ) {
     final List<String> skills = [];
 
     void addSkill(dynamic value) {
@@ -339,18 +338,21 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
         for (final item in value) {
           final skill = item.toString().trim();
 
-          if (skill.isNotEmpty && !skills.contains(skill)) {
+          if (skill.isNotEmpty &&
+              skill.toLowerCase() != 'no category' &&
+              !skills.contains(skill)) {
             skills.add(skill);
           }
         }
       } else {
-        final text = value.toString();
-        final splitSkills = text.split(',');
+        final splitSkills = value.toString().split(',');
 
         for (final item in splitSkills) {
           final skill = item.trim();
 
-          if (skill.isNotEmpty && !skills.contains(skill)) {
+          if (skill.isNotEmpty &&
+              skill.toLowerCase() != 'no category' &&
+              !skills.contains(skill)) {
             skills.add(skill);
           }
         }
@@ -364,7 +366,7 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
     addSkill(postData['skills']);
     addSkill(postData['skill']);
     addSkill(postData['skillTitle']);
-    addSkill(postData['category']);
+    addSkill(postData['skillNeeded']);
 
     if (skills.isEmpty) {
       return ['No skills'];
@@ -381,7 +383,6 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
     final searchableText = [
       item.title,
       item.description,
-      item.category,
       item.postedBy,
       item.course,
       item.skills.join(', '),
@@ -489,12 +490,6 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
                   'message',
                 ], 'No description');
 
-                final category = getText(data, [
-                  'category',
-                  'skillCategory',
-                  'type',
-                ], 'No category');
-
                 final postEmail = getText(data, [
                   'userEmail',
                   'email',
@@ -504,7 +499,6 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
                 ], '');
 
                 final userEmail = getText(userData, ['email'], '');
-
                 final userName = getText(userData, ['name', 'fullName'], '');
 
                 final postedBy = postEmail.isNotEmpty
@@ -518,13 +512,12 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
                 final ownerEmail = userEmail.isNotEmpty ? userEmail : postEmail;
 
                 final createdAt = formatDate(data['createdAt']);
+                final createdDate = getDateTime(data['createdAt']);
 
                 final course = getCourse(data, userData);
-
                 final skills = getSkills(data, userData);
 
-                final isBanned =
-                    data['isBanned'] == true ||
+                final isBanned = data['isBanned'] == true ||
                     data['banned'] == true ||
                     data['status'] == 'banned';
 
@@ -532,9 +525,9 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
                   postId: post.id,
                   title: title,
                   description: description,
-                  category: category,
                   postedBy: postedBy,
                   createdAt: createdAt,
+                  createdDate: createdDate,
                   course: course,
                   skills: skills,
                   ownerUid: linkedUser.uid,
@@ -547,6 +540,14 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
                 return matchesSearch(post);
               }).toList();
 
+              filteredPosts.sort((a, b) {
+                if (sortOrder == 'latest') {
+                  return b.createdDate.compareTo(a.createdDate);
+                } else {
+                  return a.createdDate.compareTo(b.createdDate);
+                }
+              });
+
               return Column(
                 children: [
                   _searchSection(
@@ -554,27 +555,25 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
                     filteredPosts: filteredPosts.length,
                     isDark: isDark,
                   ),
-
                   Expanded(
                     child: filteredPosts.isEmpty
                         ? Center(
-                            child: Text(
-                              'No posts found',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: isDark ? Colors.white60 : navy,
-                              ),
-                            ),
-                          )
+                      child: Text(
+                        'No posts found',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: isDark ? Colors.white60 : navy,
+                        ),
+                      ),
+                    )
                         : ListView.builder(
-                            padding: const EdgeInsets.all(16),
-                            itemCount: filteredPosts.length,
-                            itemBuilder: (context, index) {
-                              final post = filteredPosts[index];
-
-                              return _postCard(context, post, isDark: isDark);
-                            },
-                          ),
+                      padding: const EdgeInsets.all(16),
+                      itemCount: filteredPosts.length,
+                      itemBuilder: (context, index) {
+                        final post = filteredPosts[index];
+                        return _postCard(context, post, isDark: isDark);
+                      },
+                    ),
                   ),
                 ],
               );
@@ -609,18 +608,18 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
               setState(() {});
             },
             decoration: InputDecoration(
-              hintText: 'Search post title, category, email, course or skill',
+              hintText: 'Search post title, email, course or skill',
               hintStyle: TextStyle(color: subTextColor),
               prefixIcon: Icon(Icons.search, color: subTextColor),
               suffixIcon: searchController.text.isNotEmpty
                   ? IconButton(
-                      icon: Icon(Icons.clear, color: subTextColor),
-                      onPressed: () {
-                        setState(() {
-                          searchController.clear();
-                        });
-                      },
-                    )
+                icon: Icon(Icons.clear, color: subTextColor),
+                onPressed: () {
+                  setState(() {
+                    searchController.clear();
+                  });
+                },
+              )
                   : null,
               filled: true,
               fillColor: fieldColor,
@@ -641,9 +640,44 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
               ),
             ),
           ),
-
           const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            value: sortOrder,
+            dropdownColor: isDark ? darkCard : Colors.white,
+            style: TextStyle(color: textColor),
+            decoration: InputDecoration(
+              labelText: 'Sort by',
+              labelStyle: TextStyle(color: subTextColor),
+              filled: true,
+              fillColor: fieldColor,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: lineColor),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: lineColor),
+              ),
+            ),
+            items: const [
+              DropdownMenuItem(
+                value: 'latest',
+                child: Text('Latest first'),
+              ),
+              DropdownMenuItem(
+                value: 'oldest',
+                child: Text('Oldest first'),
+              ),
+            ],
+            onChanged: (value) {
+              if (value == null) return;
 
+              setState(() {
+                sortOrder = value;
+              });
+            },
+          ),
+          const SizedBox(height: 10),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -651,11 +685,11 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
                 'Showing $filteredPosts of $totalPosts posts',
                 style: TextStyle(color: subTextColor, fontSize: 12),
               ),
-
               TextButton.icon(
                 onPressed: () {
                   setState(() {
                     searchController.clear();
+                    sortOrder = 'latest';
                   });
                 },
                 icon: const Icon(Icons.refresh, size: 16),
@@ -669,10 +703,10 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
   }
 
   Widget _postCard(
-    BuildContext context,
-    _PostViewData post, {
-    required bool isDark,
-  }) {
+      BuildContext context,
+      _PostViewData post, {
+        required bool isDark,
+      }) {
     final cardColor = isDark ? darkCard : Colors.white;
     final innerColor = isDark ? darkField : bg;
     final lineColor = isDark ? darkBorder : border;
@@ -712,9 +746,7 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
                     size: 20,
                   ),
                 ),
-
                 const SizedBox(width: 12),
-
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -731,7 +763,6 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
                               ),
                             ),
                           ),
-
                           if (post.isBanned)
                             Container(
                               padding: const EdgeInsets.symmetric(
@@ -755,9 +786,7 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
                             ),
                         ],
                       ),
-
                       const SizedBox(height: 4),
-
                       Text(
                         post.description,
                         style: TextStyle(
@@ -771,9 +800,7 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
                 ),
               ],
             ),
-
             const SizedBox(height: 14),
-
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(12),
@@ -785,7 +812,6 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _infoText('Category', post.category, isDark: isDark),
                   _infoText('Posted by', post.postedBy, isDark: isDark),
                   _infoText('Course', post.course, isDark: isDark),
                   _infoText('Skills', post.skills.join(', '), isDark: isDark),
@@ -793,9 +819,7 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
                 ],
               ),
             ),
-
             const SizedBox(height: 12),
-
             Row(
               children: [
                 Expanded(
@@ -803,8 +827,8 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
                     onPressed: post.isBanned
                         ? null
                         : () {
-                            banPost(context, post);
-                          },
+                      banPost(context, post);
+                    },
                     icon: Icon(
                       post.isBanned ? Icons.block : Icons.block_outlined,
                       size: 18,
@@ -820,9 +844,7 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
                     ),
                   ),
                 ),
-
                 const SizedBox(width: 10),
-
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: () {
@@ -870,9 +892,9 @@ class _PostViewData {
   final String postId;
   final String title;
   final String description;
-  final String category;
   final String postedBy;
   final String createdAt;
+  final DateTime createdDate;
   final String course;
   final List<String> skills;
   final String ownerUid;
@@ -883,9 +905,9 @@ class _PostViewData {
     required this.postId,
     required this.title,
     required this.description,
-    required this.category,
     required this.postedBy,
     required this.createdAt,
+    required this.createdDate,
     required this.course,
     required this.skills,
     required this.ownerUid,
