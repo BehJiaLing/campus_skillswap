@@ -27,7 +27,6 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
   @override
   void initState() {
     super.initState();
-
     _searchCtrl.addListener(() {
       setState(() {
         _searchText = _searchCtrl.text.trim().toLowerCase();
@@ -87,12 +86,15 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
       final currentAdmin = FirebaseAuth.instance.currentUser;
 
       final userId = _text(
-        data['deletedUserId'] ?? data['uid'] ?? data['userId'] ?? deletedDocId,
+        data['deletedUserUid'] ??
+            data['deletedUserId'] ??
+            data['uid'] ??
+            data['userId'],
         fallback: '',
       );
 
       if (userId.isEmpty) {
-        throw 'Missing user ID. Cannot restore user.';
+        throw 'Missing original user UID. Cannot restore user.';
       }
 
       await FirebaseFirestore.instance.collection('users').doc(userId).set({
@@ -151,15 +153,11 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
           content: Text('Are you sure you want to restore $name?'),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(context, false);
-              },
+              onPressed: () => Navigator.pop(context, false),
               child: const Text('Cancel'),
             ),
             ElevatedButton.icon(
-              onPressed: () {
-                Navigator.pop(context, true);
-              },
+              onPressed: () => Navigator.pop(context, true),
               icon: const Icon(Icons.restore),
               label: const Text('Restore'),
             ),
@@ -188,22 +186,6 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
         email.contains(_searchText) ||
         campus.contains(_searchText) ||
         deletedBy.contains(_searchText);
-  }
-
-  String _getCampus(Map<String, dynamic> data) {
-    final originalData = data['originalData'];
-
-    final Map<String, dynamic> originalPostData =
-    originalData is Map ? Map<String, dynamic>.from(originalData) : {};
-
-    return _text(
-      data['deletedUserCampus'] ??
-          data['campus'] ??
-          data['school'] ??
-          originalPostData['campus'] ??
-          originalPostData['school'],
-      fallback: 'No campus',
-    );
   }
 
   Widget _deletedUserCard(
@@ -269,18 +251,12 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  'Campus: $campus',
-                  style: TextStyle(fontSize: 12, color: textColor),
-                ),
-                Text(
-                  'Course: $course',
-                  style: TextStyle(fontSize: 12, color: textColor),
-                ),
-                Text(
-                  'Skills: $skills',
-                  style: TextStyle(fontSize: 12, color: textColor),
-                ),
+                Text('Campus: $campus',
+                    style: TextStyle(fontSize: 12, color: textColor)),
+                Text('Course: $course',
+                    style: TextStyle(fontSize: 12, color: textColor)),
+                Text('Skills: $skills',
+                    style: TextStyle(fontSize: 12, color: textColor)),
                 const SizedBox(height: 8),
                 Text(
                   'Deleted by: $deletedBy',
@@ -373,187 +349,6 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
     );
   }
 
-  Widget _deletedPostCard(
-      Map<String, dynamic> data, {
-        required bool isDark,
-      }) {
-    final originalData = data['originalData'];
-
-    final Map<String, dynamic> originalPostData =
-    originalData is Map ? Map<String, dynamic>.from(originalData) : {};
-
-    final title = _text(
-      data['title'] ??
-          data['postTitle'] ??
-          originalPostData['title'] ??
-          originalPostData['postTitle'] ??
-          originalPostData['skillTitle'],
-      fallback: 'No title',
-    );
-
-    final description = _text(
-      data['description'] ??
-          originalPostData['description'] ??
-          originalPostData['content'] ??
-          originalPostData['details'],
-      fallback: 'No description',
-    );
-
-    final category = _text(
-      data['category'] ??
-          originalPostData['category'] ??
-          originalPostData['skillCategory'] ??
-          originalPostData['type'],
-      fallback: 'No category',
-    );
-
-    final postedBy = _text(
-      data['postedBy'] ??
-          data['ownerEmail'] ??
-          originalPostData['userEmail'] ??
-          originalPostData['email'] ??
-          originalPostData['postedBy'],
-      fallback: 'Unknown user',
-    );
-
-    final campus = _getCampus(data);
-
-    final course = _text(
-      data['course'] ??
-          originalPostData['course'] ??
-          originalPostData['studentCourse'] ??
-          originalPostData['programme'] ??
-          originalPostData['program'],
-      fallback: 'No course',
-    );
-
-    final skills = _skillsText(
-      data['skills'] ??
-          originalPostData['skills'] ??
-          originalPostData['skill'] ??
-          originalPostData['skillTitle'],
-    );
-
-    final deletedBy = _text(
-      data['deletedByEmail'],
-      fallback: 'Unknown Admin',
-    );
-
-    final deletedAt = _formatDate(data['deletedAt']);
-
-    final cardColor = isDark ? darkCard : Colors.white;
-    final lineColor = isDark ? darkBorder : border;
-    final textColor = isDark ? Colors.white : Colors.black87;
-    final subTextColor = isDark ? Colors.white60 : Colors.grey;
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: cardColor,
-        border: Border.all(color: lineColor),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CircleAvatar(
-            radius: 22,
-            backgroundColor: red,
-            child: const Icon(
-              Icons.article_outlined,
-              color: Colors.white,
-              size: 22,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                    color: textColor,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: subTextColor,
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Category: $category',
-                  style: TextStyle(fontSize: 12, color: textColor),
-                ),
-                Text(
-                  'Posted by: $postedBy',
-                  style: TextStyle(fontSize: 12, color: textColor),
-                ),
-                Text(
-                  'Campus: $campus',
-                  style: TextStyle(fontSize: 12, color: textColor),
-                ),
-                Text(
-                  'Course: $course',
-                  style: TextStyle(fontSize: 12, color: textColor),
-                ),
-                Text(
-                  'Skills: $skills',
-                  style: TextStyle(fontSize: 12, color: textColor),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Deleted by: $deletedBy',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: textColor,
-                  ),
-                ),
-                Text(
-                  'Deleted at: $deletedAt',
-                  style: TextStyle(
-                    color: subTextColor,
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? const Color(0xFF2F1518)
-                        : const Color(0xFFFFEBEE),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    'Deleted Post',
-                    style: TextStyle(
-                      color: red,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 11,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _deletedUsersSection({
     required bool isDark,
   }) {
@@ -570,13 +365,6 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
         color: cardColor,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: lineColor),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -738,6 +526,187 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
     );
   }
 
+  String _getCampus(Map<String, dynamic> data) {
+    final originalData = data['originalData'];
+    final Map<String, dynamic> originalPostData =
+    originalData is Map ? Map<String, dynamic>.from(originalData) : {};
+
+    return _text(
+      data['deletedUserCampus'] ??
+          data['campus'] ??
+          data['school'] ??
+          originalPostData['campus'] ??
+          originalPostData['school'],
+      fallback: 'No campus',
+    );
+  }
+
+  Widget _deletedPostCard(
+      Map<String, dynamic> data, {
+        required bool isDark,
+      }) {
+    final originalData = data['originalData'];
+    final Map<String, dynamic> originalPostData =
+    originalData is Map ? Map<String, dynamic>.from(originalData) : {};
+
+    final title = _text(
+      data['title'] ??
+          data['postTitle'] ??
+          originalPostData['title'] ??
+          originalPostData['postTitle'] ??
+          originalPostData['skillTitle'],
+      fallback: 'No title',
+    );
+
+    final description = _text(
+      data['description'] ??
+          originalPostData['description'] ??
+          originalPostData['content'] ??
+          originalPostData['details'],
+      fallback: 'No description',
+    );
+
+    final category = _text(
+      data['category'] ??
+          originalPostData['category'] ??
+          originalPostData['skillCategory'] ??
+          originalPostData['type'],
+      fallback: 'No category',
+    );
+
+    final postedBy = _text(
+      data['postedBy'] ??
+          data['ownerEmail'] ??
+          originalPostData['userEmail'] ??
+          originalPostData['email'] ??
+          originalPostData['postedBy'],
+      fallback: 'Unknown user',
+    );
+
+    final campus = _getCampus(data);
+
+    final course = _text(
+      data['course'] ??
+          originalPostData['course'] ??
+          originalPostData['studentCourse'] ??
+          originalPostData['programme'] ??
+          originalPostData['program'],
+      fallback: 'No course',
+    );
+
+    final skills = _skillsText(
+      data['skills'] ??
+          originalPostData['skills'] ??
+          originalPostData['skill'] ??
+          originalPostData['skillTitle'],
+    );
+
+    final deletedBy = _text(data['deletedByEmail'], fallback: 'Unknown Admin');
+    final deletedAt = _formatDate(data['deletedAt']);
+
+    final cardColor = isDark ? darkCard : Colors.white;
+    final lineColor = isDark ? darkBorder : border;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subTextColor = isDark ? Colors.white60 : Colors.grey;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: cardColor,
+        border: Border.all(color: lineColor),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 22,
+            backgroundColor: red,
+            child: const Icon(
+              Icons.article_outlined,
+              color: Colors.white,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: textColor,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: subTextColor,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text('Category: $category',
+                    style: TextStyle(fontSize: 12, color: textColor)),
+                Text('Posted by: $postedBy',
+                    style: TextStyle(fontSize: 12, color: textColor)),
+                Text('Campus: $campus',
+                    style: TextStyle(fontSize: 12, color: textColor)),
+                Text('Course: $course',
+                    style: TextStyle(fontSize: 12, color: textColor)),
+                Text('Skills: $skills',
+                    style: TextStyle(fontSize: 12, color: textColor)),
+                const SizedBox(height: 8),
+                Text(
+                  'Deleted by: $deletedBy',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                ),
+                Text(
+                  'Deleted at: $deletedAt',
+                  style: TextStyle(
+                    color: subTextColor,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? const Color(0xFF2F1518)
+                        : const Color(0xFFFFEBEE),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'Deleted Post',
+                    style: TextStyle(
+                      color: red,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _deletedPostsSection({
     required bool isDark,
   }) {
@@ -753,13 +722,6 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
         color: cardColor,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: lineColor),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -812,23 +774,12 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
                 return Center(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 32),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.layers_clear_outlined,
-                          size: 40,
-                          color: subTextColor,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'No deleted posts recorded yet',
-                          style: TextStyle(
-                            color: subTextColor,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
+                    child: Text(
+                      'No deleted posts recorded yet',
+                      style: TextStyle(
+                        color: subTextColor,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                 );
@@ -842,8 +793,7 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
                   return const SizedBox(height: 10);
                 },
                 itemBuilder: (context, index) {
-                  final doc = docs[index];
-                  final data = doc.data() as Map<String, dynamic>;
+                  final data = docs[index].data() as Map<String, dynamic>;
 
                   return _deletedPostCard(
                     data,
