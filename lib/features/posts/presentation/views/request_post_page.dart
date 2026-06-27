@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/widgets/bottom_sidebar.dart';
 import '../../models/request_post.dart';
 import '../view_models/my_requests_view_model.dart';
 import '../view_models/request_post_detail_view_model.dart';
 import 'request_post_detail_page.dart';
 
-class RequestPostPage extends StatelessWidget {
-  const RequestPostPage({
+class MyPostsPage extends StatelessWidget {
+  const MyPostsPage({
     super.key,
     required this.viewModel,
     required this.detailViewModelBuilder,
@@ -39,7 +38,6 @@ class RequestPostPage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      bottomNavigationBar: const BottomSidebar(currentIndex: 3),
       body: SafeArea(
         child: Column(
           children: [
@@ -47,10 +45,13 @@ class RequestPostPage extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(24, 26, 24, 12),
               child: Row(
                 children: [
-                  Icon(Icons.notifications_rounded, size: 40, color: darkText),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: Icon(Icons.arrow_back, color: darkText),
+                  ),
                   const SizedBox(width: 14),
                   Text(
-                    "My Requests",
+                    "My Posts",
                     style: TextStyle(
                       fontSize: 30,
                       fontWeight: FontWeight.bold,
@@ -183,10 +184,16 @@ class RequestPostPage extends StatelessWidget {
   }
 
   Widget _statusBadge(RequestPostStatus status) {
+    final color = switch (status) {
+      RequestPostStatus.open => green,
+      RequestPostStatus.matched || RequestPostStatus.inProgress => peach,
+      RequestPostStatus.completed ||
+      RequestPostStatus.cancelled => const Color(0xFFD1D5DB),
+    };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
       decoration: BoxDecoration(
-        color: status == RequestPostStatus.open ? green : peach,
+        color: color,
         borderRadius: BorderRadius.circular(18),
       ),
       child: Text(

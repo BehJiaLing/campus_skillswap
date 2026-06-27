@@ -22,6 +22,8 @@ import 'features/auth/presentation/views/verify_email_page.dart';
 import 'features/posts/presentation/views/post_page.dart';
 import 'features/posts/presentation/views/create_post_page.dart';
 import 'features/posts/presentation/views/request_post_page.dart';
+import 'features/notifications/presentation/view_models/notification_view_model.dart';
+import 'features/notifications/presentation/views/notification_page.dart';
 
 import 'features/admin/presentation/views/admin_dashboard_page.dart';
 import 'features/admin/presentation/views/admin_user_management_page.dart';
@@ -102,28 +104,28 @@ class _AppBootstrapState extends State<AppBootstrap> {
             child: _startupError == null
                 ? const CircularProgressIndicator()
                 : Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.error_outline,
-                    color: Colors.redAccent,
-                    size: 48,
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          color: Colors.redAccent,
+                          size: 48,
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Campus SkillSwap could not start.',
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: _initialize,
+                          child: const Text('Try Again'),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Campus SkillSwap could not start.',
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _initialize,
-                    child: const Text('Try Again'),
-                  ),
-                ],
-              ),
-            ),
           ),
         ),
       ),
@@ -159,9 +161,7 @@ class MyApp extends StatelessWidget {
               backgroundColor: Color(0xFF1A1F5E),
               foregroundColor: Colors.white,
             ),
-            textTheme: const TextTheme(
-              bodyMedium: TextStyle(color: darkText),
-            ),
+            textTheme: const TextTheme(bodyMedium: TextStyle(color: darkText)),
           ),
           darkTheme: ThemeData(
             useMaterial3: true,
@@ -181,23 +181,23 @@ class MyApp extends StatelessWidget {
           routes: {
             '/login': (context) => const LightThemeWrapper(child: LoginPage()),
             '/signup': (context) =>
-            const LightThemeWrapper(child: SignUpPage()),
+                const LightThemeWrapper(child: SignUpPage()),
             '/verify-email': (context) =>
-            const LightThemeWrapper(child: VerifyEmailPage()),
+                const LightThemeWrapper(child: VerifyEmailPage()),
             '/create-profile': (context) =>
-            const LightThemeWrapper(child: CreateProfilePage()),
+                const LightThemeWrapper(child: CreateProfilePage()),
             '/forgot-password': (context) =>
-            const LightThemeWrapper(child: ForgotPasswordPage()),
+                const LightThemeWrapper(child: ForgotPasswordPage()),
 
             '/post': (context) => PostPage(
               viewModel: PostFeedViewModel(dependencies.postRepository),
-              detailViewModelBuilder: (postId) =>
-                  RequestPostDetailViewModel(
-                    dependencies.postRepository,
-                    dependencies.authRepository,
-                    dependencies.userProfileRepository,
-                    postId,
-                  ),
+              detailViewModelBuilder: (postId) => RequestPostDetailViewModel(
+                dependencies.postRepository,
+                dependencies.authRepository,
+                dependencies.userProfileRepository,
+                dependencies.groqMatchingService,
+                postId,
+              ),
             ),
             '/create-post': (context) => CreatePostPage(
               viewModel: CreatePostViewModel(
@@ -206,18 +206,31 @@ class MyApp extends StatelessWidget {
                 dependencies.authRepository,
               ),
             ),
-            '/request-post': (context) => RequestPostPage(
+            '/request-post': (context) => NotificationPage(
+              viewModel: NotificationViewModel(
+                dependencies.postRepository,
+                dependencies.authRepository,
+              ),
+              detailViewModelBuilder: (postId) => RequestPostDetailViewModel(
+                dependencies.postRepository,
+                dependencies.authRepository,
+                dependencies.userProfileRepository,
+                dependencies.groqMatchingService,
+                postId,
+              ),
+            ),
+            '/my-posts': (context) => MyPostsPage(
               viewModel: MyRequestsViewModel(
                 dependencies.postRepository,
                 dependencies.authRepository,
               ),
-              detailViewModelBuilder: (postId) =>
-                  RequestPostDetailViewModel(
-                    dependencies.postRepository,
-                    dependencies.authRepository,
-                    dependencies.userProfileRepository,
-                    postId,
-                  ),
+              detailViewModelBuilder: (postId) => RequestPostDetailViewModel(
+                dependencies.postRepository,
+                dependencies.authRepository,
+                dependencies.userProfileRepository,
+                dependencies.groqMatchingService,
+                postId,
+              ),
             ),
             '/chat': (context) => const ChatListPage(),
             '/profile': (context) => const ProfilePage(),
@@ -226,7 +239,7 @@ class MyApp extends StatelessWidget {
             '/admin/user-management': (context) => const UserManagementPage(),
             '/admin/users': (context) => const AdminUsersPage(),
             '/admin/post-management': (context) =>
-            const AdminPostManagementPage(),
+                const AdminPostManagementPage(),
             '/admin/settings': (context) => const AdminSettingsPage(),
             '/admin/user-access': (context) => const AdminUserAccessPage(),
           },
@@ -250,15 +263,38 @@ class LightThemeWrapper extends StatelessWidget {
   }
 }
 
-class AuthGate extends StatelessWidget {
+class AuthGate extends StatefulWidget {
   const AuthGate({super.key, required this.viewModel});
 
   final StartupViewModel viewModel;
 
   @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  late Future<String> _startRoute;
+  bool _navigationScheduled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _startRoute = widget.viewModel.resolveStartRoute();
+  }
+
+  @override
+  void didUpdateWidget(covariant AuthGate oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.viewModel, widget.viewModel)) {
+      _navigationScheduled = false;
+      _startRoute = widget.viewModel.resolveStartRoute();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return FutureBuilder<String>(
-      future: viewModel.resolveStartRoute(),
+      future: _startRoute,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return const LightThemeWrapper(child: LoginPage());
@@ -270,9 +306,13 @@ class AuthGate extends StatelessWidget {
           );
         }
 
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          Navigator.pushReplacementNamed(context, snapshot.data!);
-        });
+        if (!_navigationScheduled) {
+          _navigationScheduled = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            Navigator.pushReplacementNamed(context, snapshot.data!);
+          });
+        }
 
         return const Scaffold(body: Center(child: CircularProgressIndicator()));
       },

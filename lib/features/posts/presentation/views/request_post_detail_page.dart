@@ -1,9 +1,15 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
 import '../../../chat/presentation/views/chat_detail_page.dart';
+import '../../../../core/widgets/blocking_loading_overlay.dart';
+import '../../models/ai_match.dart';
 import '../../models/request_interactions.dart';
 import '../../models/request_post.dart';
+import '../../../profile/models/user_profile.dart';
 import '../view_models/request_post_detail_view_model.dart';
+import 'all_helper_offers_page.dart';
 
 class RequestPostDetailPage extends StatefulWidget {
   const RequestPostDetailPage({super.key, required this.viewModel});
@@ -15,8 +21,10 @@ class RequestPostDetailPage extends StatefulWidget {
 }
 
 class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
-  static const cardBlue = Color(0xFFC8D4F0);
+  static const navy = Color(0xFF1A1F5E);
   static const darkText = Color(0xFF1F223D);
+  static const bg = Color(0xFFF7F8FC);
+  static const softBlue = Color(0xFFEAF2FF);
   static const green = Color(0xFFB8F2B8);
   static const peach = Color(0xFFEFCFAB);
 
@@ -37,327 +45,1415 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
     final message = success
         ? successMessage
         : widget.viewModel.errorMessage ?? 'Something went wrong.';
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: widget.viewModel,
-      builder: (context, _) => Scaffold(
-        backgroundColor: Colors.white,
-        appBar: AppBar(
-          title: const Text('Request Details'),
-          backgroundColor: Colors.white,
-          foregroundColor: darkText,
-          elevation: 0,
+      builder: (context, _) {
+        return BlockingLoadingOverlay(
+          loading: widget.viewModel.busy,
+          message: 'Updating request...',
+          child: Scaffold(
+            backgroundColor: bg,
+            appBar: AppBar(
+              title: const Text('Request Details'),
+              backgroundColor: bg,
+              foregroundColor: darkText,
+              elevation: 0,
+            ),
+            body: StreamBuilder<RequestPost?>(
+              stream: widget.viewModel.post,
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return const Center(child: Text('Failed to load request'));
+                }
+
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                final post = snapshot.data;
+
+                if (post == null) {
+                  return const Center(child: Text('Post not found'));
+                }
+
+                return Scrollbar(
+                  thumbVisibility: true,
+                  thickness: 5,
+                  radius: const Radius.circular(20),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _requestHeader(post),
+                        _section(
+                          title: 'Status Progress',
+                          icon: Icons.timeline_rounded,
+                          child: _progress(post.status),
+                        ),
+                        if (widget.viewModel.isOwner(post) ||
+                            post.pendingHelperId ==
+                                widget.viewModel.currentUserId ||
+                            post.matchedUserId ==
+                                widget.viewModel.currentUserId)
+                          _offers(post),
+                        _actionArea(post),
+                        _comments(),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _requestHeader(RequestPost post) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: navy,
+        borderRadius: BorderRadius.circular(26),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.16),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _badge(post.status),
+          const SizedBox(height: 18),
+          Text(
+            post.title,
+            style: const TextStyle(
+              fontSize: 27,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _infoPill(Icons.psychology_alt_rounded, 'Skill: ${post.skillNeeded}'),
+          const SizedBox(height: 10),
+          Text(
+            post.description,
+            style: const TextStyle(
+              fontSize: 16,
+              height: 1.45,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _infoPill(IconData icon, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: Colors.white),
+          const SizedBox(width: 7),
+          Flexible(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _actionArea(RequestPost post) {
+    Widget? action;
+
+    if (widget.viewModel.canOffer(post) &&
+        post.pendingHelperId != widget.viewModel.currentUserId) {
+      action = StreamBuilder<List<HelpOffer>>(
+        stream: widget.viewModel.offers,
+        builder: (context, snapshot) {
+          final sent = (snapshot.data ?? const <HelpOffer>[]).any(
+            (offer) => offer.userId == widget.viewModel.currentUserId,
+          );
+          if (sent) {
+            return FilledButton.icon(
+              onPressed: null,
+              icon: const Icon(Icons.check_circle),
+              label: const Text('Offer Sent'),
+            );
+          }
+          return _button('Offer Help', Icons.volunteer_activism, () async {
+            showResult(
+              await widget.viewModel.offerHelp(post),
+              'Your offer was sent.',
+            );
+          });
+        },
+      );
+    } else if (widget.viewModel.isOwner(post) &&
+        post.status == RequestPostStatus.matched) {
+      action = _button('End Post & Rate Helper', Icons.flag_circle_rounded, () {
+        _showCompletionRatingDialog(post);
+      });
+    }
+
+    if (action == null) return const SizedBox(height: 8);
+    return Padding(padding: const EdgeInsets.only(top: 18), child: action);
+  }
+
+  Widget _aiMatchCard(
+    AiMatch match, {
+    required bool isTop,
+    required int rank,
+    VoidCallback? onChoose,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isTop ? const Color(0xFFFFC857) : const Color(0xFFE7EAF3),
+          width: isTop ? 2 : 1,
         ),
-        body: StreamBuilder<RequestPost?>(
-          stream: widget.viewModel.post,
-          builder: (context, snapshot) {
-            if (snapshot.hasError) {
-              return const Center(child: Text('Failed to load request'));
-            }
-
-            if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            final post = snapshot.data;
-
-            if (post == null) {
-              return const Center(child: Text('Post not found'));
-            }
-
-            return Scrollbar(
-              thumbVisibility: true,
-              thickness: 6,
-              radius: const Radius.circular(20),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (isTop)
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF3C4),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Text(
+                'Top AI Recommendation',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF8A5A00),
+                ),
+              ),
+            ),
+          Row(
+            children: [
+              _percentageCircle(match.matchPercentage),
+              const SizedBox(width: 14),
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _requestCard(post),
-                    _section('Status Progress', _progress(post.status)),
-                    _actionArea(post),
-                    if (widget.viewModel.isOwner(post)) _offers(post),
-                    _comments(),
-                    _ratings(post),
+                    Text(
+                      '#$rank ${match.userName}',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: darkText,
+                      ),
+                    ),
+                    Text(match.course),
                   ],
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _skillChips(match.skills),
+          const SizedBox(height: 12),
+          LinearProgressIndicator(
+            value: match.matchPercentage / 100,
+            minHeight: 8,
+            backgroundColor: Colors.grey.shade200,
+            color: _matchColor(match.matchPercentage),
+            borderRadius: BorderRadius.circular(30),
+          ),
+          const SizedBox(height: 12),
+          _reasonBox(match.reason),
+          if (onChoose != null) ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: onChoose,
+                icon: const Icon(Icons.person_add_alt_1),
+                label: const Text('Choose This Helper'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _offers(RequestPost post) {
+    if (post.pendingHelperId != null && post.pendingHelperName != null) {
+      final isOwner = widget.viewModel.isOwner(post);
+      final otherId = isOwner ? post.pendingHelperId! : post.userId;
+      final otherName = isOwner ? post.pendingHelperName! : post.userName;
+      return _section(
+        title: isOwner ? 'Pending Helper Invitation' : 'Helper Invitation',
+        icon: Icons.hourglass_top_rounded,
+        child: FutureBuilder<UserProfile?>(
+          future: widget.viewModel.getHelperProfile(otherId),
+          builder: (context, snapshot) => _relationshipCard(
+            post: post,
+            profile: snapshot.data,
+            name: otherName,
+            otherUserId: otherId,
+            message: isOwner
+                ? 'Waiting for $otherName to accept or reject your invitation.'
+                : '${post.userName} invited you to help with this request.',
+            actions: isOwner
+                ? [
+                    OutlinedButton.icon(
+                      onPressed: widget.viewModel.busy
+                          ? null
+                          : () async => showResult(
+                              await widget.viewModel.cancelHelperInvitation(
+                                post,
+                              ),
+                              'Helper invitation cancelled.',
+                            ),
+                      icon: const Icon(Icons.close),
+                      label: const Text('Cancel Request'),
+                    ),
+                  ]
+                : [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: widget.viewModel.busy
+                            ? null
+                            : () async => showResult(
+                                await widget.viewModel
+                                    .respondToPendingInvitation(false),
+                                'Invitation rejected.',
+                              ),
+                        child: const Text('Reject'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: widget.viewModel.busy
+                            ? null
+                            : () async => showResult(
+                                await widget.viewModel
+                                    .respondToPendingInvitation(true),
+                                'Invitation accepted. You are now matched.',
+                              ),
+                        icon: const Icon(Icons.check),
+                        label: const Text('Accept'),
+                      ),
+                    ),
+                  ],
+          ),
+        ),
+      );
+    }
+    if (post.matchedUserId != null && post.matchedUserName != null) {
+      final isOwner = widget.viewModel.isOwner(post);
+      final otherId = isOwner ? post.matchedUserId! : post.userId;
+      final otherName = isOwner ? post.matchedUserName! : post.userName;
+      return _section(
+        title: isOwner ? 'Confirmed Helper' : 'Matched Requester',
+        icon: Icons.verified_user_rounded,
+        child: FutureBuilder<UserProfile?>(
+          future: widget.viewModel.getHelperProfile(otherId),
+          builder: (context, snapshot) => _relationshipCard(
+            post: post,
+            profile: snapshot.data,
+            name: otherName,
+            otherUserId: otherId,
+            message: 'Both users confirmed this skill exchange.',
+          ),
+        ),
+      );
+    }
+    return _section(
+      title: 'Top Helper Offers',
+      icon: Icons.people_alt_rounded,
+      child: StreamBuilder<List<HelpOffer>>(
+        stream: widget.viewModel.offers,
+        builder: (context, snapshot) {
+          final offers = [...(snapshot.data ?? const <HelpOffer>[])]
+            ..sort((a, b) => b.matchScore.compareTo(a.matchScore));
+
+          if (offers.isEmpty) {
+            return Column(
+              children: [
+                _emptyState(
+                  icon: Icons.person_search_rounded,
+                  title: 'No helper offers yet',
+                  message: 'No helper offer? Use AI matching profile!!',
+                ),
+                const SizedBox(height: 14),
+                _button(
+                  'No helper offer? Use AI matching profile!!',
+                  Icons.auto_awesome,
+                  () => _showAiMatchingDialog(post, offers),
+                ),
+              ],
             );
-          },
+          }
+
+          final topOffers = offers.take(3).toList(growable: false);
+          final rankingById = <String, AiMatch>{
+            for (final item in widget.viewModel.rankedOffers) item.userId: item,
+          };
+          if (rankingById.isNotEmpty) {
+            topOffers.sort(
+              (a, b) => (rankingById[b.userId]?.matchPercentage ?? 0).compareTo(
+                rankingById[a.userId]?.matchPercentage ?? 0,
+              ),
+            );
+          }
+
+          return Column(
+            children: [
+              if (offers.length >= 2) ...[
+                _button(
+                  'AI Rank Helper Offers',
+                  Icons.leaderboard_rounded,
+                  () => _showOfferRankingDialog(post, offers),
+                ),
+                const SizedBox(height: 8),
+              ],
+              if (offers.length > 3)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => AllHelperOffersPage(
+                          post: post,
+                          offers: offers,
+                          viewModel: widget.viewModel,
+                        ),
+                      ),
+                    ),
+                    iconAlignment: IconAlignment.end,
+                    icon: const Text('>>'),
+                    label: Text('View all ${offers.length} helper offers'),
+                  ),
+                ),
+              ...List.generate(
+                topOffers.length,
+                (index) => _offerCard(
+                  post,
+                  topOffers[index],
+                  ranking: rankingById[topOffers[index].userId],
+                  rank: rankingById.isEmpty ? null : index + 1,
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                "All don't want? Try AI matching profile!!",
+                style: TextStyle(fontWeight: FontWeight.bold, color: darkText),
+              ),
+              const SizedBox(height: 8),
+              _button(
+                'Try AI Matching Profile',
+                Icons.manage_search_rounded,
+                () => _showAiMatchingDialog(post, offers),
+                secondary: true,
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _relationshipCard({
+    required RequestPost post,
+    required UserProfile? profile,
+    required String name,
+    required String otherUserId,
+    required String message,
+    List<Widget> actions = const [],
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              radius: 31,
+              backgroundColor: softBlue,
+              backgroundImage: profile?.photoUrl == null
+                  ? null
+                  : NetworkImage(profile!.photoUrl!),
+              child: profile?.photoUrl == null
+                  ? const Icon(Icons.person, color: navy, size: 33)
+                  : null,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  if (profile != null) Text(profile.course),
+                  if (profile != null)
+                    Text(
+                      '★ ${profile.averageRating.toStringAsFixed(1)}  •  ${profile.rewardPoints} points',
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                ],
+              ),
+            ),
+            if (post.chatId != null)
+              IconButton.filled(
+                tooltip: 'Message $name',
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ChatDetailPage(
+                      userName: name,
+                      chatId: post.chatId!,
+                      otherUserId: otherUserId,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.message_rounded),
+              ),
+          ],
+        ),
+        if (profile != null && profile.skills.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _skillChips(profile.skills),
+        ],
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: softBlue,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Text(
+            message,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ),
+        if (actions.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          Row(children: actions),
+        ],
+      ],
+    );
+  }
+
+  Widget _offerCard(
+    RequestPost post,
+    HelpOffer offer, {
+    AiMatch? ranking,
+    int? rank,
+  }) {
+    final accepted = offer.status == 'accepted';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: accepted ? Colors.green : const Color(0xFFE7EAF3),
+          width: accepted ? 2 : 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              ranking == null
+                  ? const CircleAvatar(
+                      radius: 29,
+                      backgroundColor: softBlue,
+                      child: Icon(Icons.person, color: navy, size: 31),
+                    )
+                  : _percentageCircle(ranking.matchPercentage),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${rank == null ? '' : '#$rank '}${offer.userName}',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: darkText,
+                      ),
+                    ),
+                    Text(
+                      offer.course,
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+              if (accepted)
+                const Icon(Icons.check_circle, color: Colors.green, size: 30),
+            ],
+          ),
+          if (ranking != null) ...[
+            const SizedBox(height: 14),
+            _skillChips(offer.skills),
+            const SizedBox(height: 12),
+            _reasonBox(ranking.reason),
+          ],
+          if (post.status == RequestPostStatus.open && !accepted) ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: widget.viewModel.busy
+                    ? null
+                    : () async => showResult(
+                        await widget.viewModel.acceptCandidate(
+                          post,
+                          helperId: offer.userId,
+                          helperName: offer.userName,
+                        ),
+                        '${offer.userName} has been selected as the helper.',
+                      ),
+                icon: const Icon(Icons.person_add_alt_1),
+                label: const Text('Choose This Helper'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showOfferRankingDialog(
+    RequestPost post,
+    List<HelpOffer> offers,
+  ) async {
+    final ranking = widget.viewModel.rankHelperOffers(post, offers);
+    await _showBlurredDialog(
+      title: 'AI Best Helper Offers',
+      child: FutureBuilder<bool>(
+        future: ranking,
+        builder: (dialogContext, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return _dialogLoading('Groq is ranking all helper offers...');
+          }
+          if (snapshot.data != true) {
+            return _dialogError(widget.viewModel.errorMessage);
+          }
+          final ranked = widget.viewModel.rankedOffers.take(3).toList();
+          if (ranked.isEmpty) {
+            return _dialogError('Groq did not return a valid helper ranking.');
+          }
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(
+              ranked.length,
+              (index) => _aiMatchCard(
+                ranked[index],
+                isTop: index == 0,
+                rank: index + 1,
+                onChoose: post.status == RequestPostStatus.open
+                    ? () => _chooseCandidate(dialogContext, post, ranked[index])
+                    : null,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _showCompletionRatingDialog(RequestPost post) async {
+    selectedStars = 5;
+    reviewController.clear();
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Finish this skill exchange'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Rate your helper. The rating also awards 20 points per star.',
+              ),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(
+                  5,
+                  (index) => IconButton(
+                    onPressed: () =>
+                        setDialogState(() => selectedStars = index + 1),
+                    icon: Icon(
+                      index < selectedStars ? Icons.star : Icons.star_border,
+                      color: Colors.amber.shade700,
+                    ),
+                  ),
+                ),
+              ),
+              TextField(
+                controller: reviewController,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'Comment',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: widget.viewModel.busy
+                  ? null
+                  : () async {
+                      final ok = await widget.viewModel.submitRating(
+                        post,
+                        selectedStars,
+                        reviewController.text,
+                      );
+                      if (!dialogContext.mounted) return;
+                      if (ok) Navigator.pop(dialogContext);
+                      showResult(ok, 'Post completed and helper rating saved.');
+                    },
+              child: const Text('Complete Post'),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _requestCard(RequestPost post) => _card(
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                post.title,
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: darkText,
-                ),
-              ),
-            ),
-            _badge(post.status),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Skill needed: ${post.skillNeeded}',
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          post.description,
-          style: const TextStyle(fontSize: 16, color: darkText),
-        ),
-        if (post.matchedUserName != null) ...[
-          const SizedBox(height: 14),
-          Text(
-            'Matched helper: ${post.matchedUserName}',
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ],
-      ],
-    ),
-  );
-
-  Widget _actionArea(RequestPost post) {
-    Widget? action;
-
-    if (widget.viewModel.canOffer(post)) {
-      action = _button('Offer Help', Icons.volunteer_activism, () async {
-        showResult(
-          await widget.viewModel.offerHelp(post),
-          'Your offer was sent.',
-        );
-      });
-    } else if (widget.viewModel.isOwner(post) &&
-        (post.status == RequestPostStatus.matched ||
-            post.status == RequestPostStatus.inProgress)) {
-      final label = post.status == RequestPostStatus.matched
-          ? 'Start Skill Exchange'
-          : 'Mark as Completed';
-
-      action = _button(label, Icons.check_circle_outline, () async {
-        showResult(
-          await widget.viewModel.advanceStatus(post),
-          'Request status updated.',
-        );
-      });
-    }
-
-    final canOpenChat = post.chatId != null &&
-        (widget.viewModel.currentUserId == post.userId ||
-            widget.viewModel.currentUserId == post.matchedUserId);
-
-    if (action == null && !canOpenChat) return const SizedBox(height: 4);
-
-    final actions = <Widget>[];
-
-    if (action != null) actions.add(action);
-    if (action != null && canOpenChat) actions.add(const SizedBox(height: 10));
-
-    if (canOpenChat) {
-      actions.add(
-        _button(
-          'Open Chat',
-          Icons.chat_bubble_outline,
-              () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ChatDetailPage(
-                  userName: widget.viewModel.isOwner(post)
-                      ? post.matchedUserName ?? 'Matched Helper'
-                      : post.userName,
-                  chatId: post.chatId!,
-                  otherUserId: widget.viewModel.isOwner(post)
-                      ? post.matchedUserId!
-                      : post.userId,
-                ),
-              ),
+  Future<void> _showAiMatchingDialog(
+    RequestPost post,
+    List<HelpOffer> offers,
+  ) async {
+    _combinedRankingVisible[post.id] = false;
+    final matching = widget.viewModel.generateAiMatches(post);
+    await _showBlurredDialog(
+      title: 'AI Matching Profiles',
+      child: FutureBuilder<bool>(
+        future: matching,
+        builder: (dialogContext, futureSnapshot) {
+          if (futureSnapshot.connectionState != ConnectionState.done) {
+            return _dialogLoading(
+              'Rule-based filtering is selecting 5 profiles, then Groq will rank the best 3...',
             );
-          },
-          secondary: true,
-        ),
-      );
-    }
+          }
+          if (futureSnapshot.data != true) {
+            return _dialogError(widget.viewModel.errorMessage);
+          }
 
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: Column(children: actions),
+          return StreamBuilder<List<AiMatch>>(
+            stream: widget.viewModel.aiMatches,
+            builder: (context, matchSnapshot) {
+              final matches = [
+                ...(matchSnapshot.data ?? const <AiMatch>[]),
+              ]..sort((a, b) => b.matchPercentage.compareTo(a.matchPercentage));
+              if (matches.isEmpty) {
+                return _dialogError('No suitable profiles were found.');
+              }
+
+              return StatefulBuilder(
+                builder: (context, setDialogState) {
+                  var combinedVisible =
+                      _combinedRankingVisible[post.id] ?? false;
+                  final combined = _combineCandidates(
+                    matches,
+                    offers,
+                  ).take(3).toList(growable: false);
+                  final displayed = combinedVisible
+                      ? combined
+                            .map(
+                              (candidate) => AiMatch(
+                                userId: candidate.userId,
+                                userName: candidate.userName,
+                                course: candidate.course,
+                                skills: candidate.skills,
+                                matchPercentage: candidate.finalScore,
+                                reason: candidate.reason,
+                              ),
+                            )
+                            .toList(growable: false)
+                      : matches.take(3).toList(growable: false);
+
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (combinedVisible)
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            'Final Combined Ranking',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: navy,
+                            ),
+                          ),
+                        ),
+                      ...List.generate(
+                        displayed.length,
+                        (index) => _aiMatchCard(
+                          displayed[index],
+                          isTop: index == 0,
+                          rank: index + 1,
+                          onChoose: post.status == RequestPostStatus.open
+                              ? () => _chooseCandidate(
+                                  dialogContext,
+                                  post,
+                                  displayed[index],
+                                )
+                              : null,
+                        ),
+                      ),
+                      if (offers.isNotEmpty && !combinedVisible) ...[
+                        const SizedBox(height: 6),
+                        _button(
+                          'Combine Final Ranking',
+                          Icons.merge_rounded,
+                          () {
+                            _combinedRankingVisible[post.id] = true;
+                            setDialogState(() {
+                              combinedVisible = true;
+                            });
+                          },
+                        ),
+                      ],
+                    ],
+                  );
+                },
+              );
+            },
+          );
+        },
+      ),
     );
   }
 
-  Widget _offers(RequestPost post) => _section(
-    'AI Matching Suggestion',
-    StreamBuilder<List<HelpOffer>>(
-      stream: widget.viewModel.offers,
-      builder: (context, snapshot) {
-        final offers = snapshot.data ?? const [];
+  final Map<String, bool> _combinedRankingVisible = {};
 
-        if (offers.isEmpty) {
-          return const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.auto_awesome, size: 36),
-              SizedBox(height: 10),
-              Text(
-                'No matching helper yet.',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              SizedBox(height: 6),
-              Text(
-                'When students offer help, the system will suggest the best match based on skill, course, and match score.',
-              ),
-            ],
-          );
-        }
+  Future<void> _chooseCandidate(
+    BuildContext dialogContext,
+    RequestPost post,
+    AiMatch candidate,
+  ) async {
+    final success = await widget.viewModel.acceptCandidate(
+      post,
+      helperId: candidate.userId,
+      helperName: candidate.userName,
+    );
+    if (!mounted || !dialogContext.mounted) return;
+    showResult(
+      success,
+      'Helper selection updated. If needed, an invitation is now waiting for reply.',
+    );
+    if (success) Navigator.pop(dialogContext);
+  }
 
-        final sortedOffers = [...offers]
-          ..sort((a, b) => b.matchScore.compareTo(a.matchScore));
-
-        return Column(
-          children: sortedOffers.map((offer) {
-            final isBest = offer == sortedOffers.first;
-            final isAccepted = offer.status == 'accepted';
-
-            return Container(
-              margin: const EdgeInsets.only(bottom: 14),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: isBest ? green : Colors.transparent,
-                  width: 2,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (isBest)
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: green,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Text(
-                        'Best AI Match',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  Row(
+  Future<void> _showBlurredDialog({
+    required String title,
+    required Widget child,
+  }) {
+    return showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Close AI matching',
+      barrierColor: Colors.black.withValues(alpha: 0.62),
+      transitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (dialogContext, animation, secondaryAnimation) {
+        return BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+          child: SafeArea(
+            child: Center(
+              child: Material(
+                color: Colors.transparent,
+                child: Container(
+                  width: MediaQuery.sizeOf(dialogContext).width * 0.92,
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.86,
+                    maxWidth: 560,
+                  ),
+                  decoration: BoxDecoration(
+                    color: bg,
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      CircleAvatar(
-                        radius: 28,
-                        backgroundColor: cardBlue,
-                        child: Text(
-                          '${offer.matchScore}%',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(22, 18, 10, 12),
+                        child: Row(
                           children: [
-                            Text(
-                              offer.userName,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
+                            const Icon(Icons.auto_awesome, color: navy),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                title,
+                                style: const TextStyle(
+                                  fontSize: 21,
+                                  fontWeight: FontWeight.bold,
+                                  color: darkText,
+                                ),
                               ),
                             ),
-                            Text(
-                              offer.course,
-                              style: const TextStyle(fontSize: 14),
+                            IconButton(
+                              onPressed: () => Navigator.pop(dialogContext),
+                              icon: const Icon(Icons.close),
                             ),
                           ],
                         ),
                       ),
-                      if (isAccepted)
-                        const Icon(
-                          Icons.check_circle,
-                          color: Colors.green,
-                          size: 30,
+                      Flexible(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(18, 4, 18, 20),
+                          child: child,
                         ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Skills: ${offer.skills.join(', ')}',
-                    style: const TextStyle(fontSize: 15),
-                  ),
-                  const SizedBox(height: 10),
-                  LinearProgressIndicator(
-                    value: offer.matchScore / 100,
-                    minHeight: 8,
-                    backgroundColor: Colors.grey.shade200,
-                    color: offer.matchScore >= 80
-                        ? Colors.green
-                        : offer.matchScore >= 60
-                        ? Colors.orange
-                        : Colors.redAccent,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _matchReason(offer),
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                  if (post.status == RequestPostStatus.open &&
-                      offer.status != 'accepted') ...[
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        onPressed: widget.viewModel.busy
-                            ? null
-                            : () async => showResult(
-                          await widget.viewModel.acceptOffer(
-                            post,
-                            offer,
-                          ),
-                          '${offer.userName} was accepted.',
-                        ),
-                        icon: const Icon(Icons.person_add_alt_1),
-                        label: const Text('Accept Helper'),
-                      ),
-                    ),
-                  ],
-                ],
+                ),
               ),
-            );
-          }).toList(),
+            ),
+          ),
         );
       },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return FadeTransition(
+          opacity: animation,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.96, end: 1).animate(animation),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _dialogLoading(String message) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 16),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const CircularProgressIndicator(),
+        const SizedBox(height: 18),
+        Text(message, textAlign: TextAlign.center),
+      ],
     ),
   );
+
+  Widget _dialogError(String? message) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 16),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.error_outline, color: Colors.redAccent, size: 42),
+        const SizedBox(height: 12),
+        Text(
+          message ?? 'Unable to generate ranking. Please try again.',
+          textAlign: TextAlign.center,
+        ),
+      ],
+    ),
+  );
+
+  Widget _comments() {
+    return _section(
+      title: 'Comments',
+      icon: Icons.mode_comment_rounded,
+      child: Column(
+        children: [
+          StreamBuilder<List<RequestComment>>(
+            stream: widget.viewModel.comments,
+            builder: (context, snapshot) {
+              final comments = snapshot.data ?? const [];
+
+              if (comments.isEmpty) {
+                return _emptyState(
+                  icon: Icons.chat_bubble_outline,
+                  title: 'No comments yet',
+                  message: 'Start a discussion about this request.',
+                );
+              }
+
+              return Column(
+                children: comments.map((comment) {
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFE7EAF3)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const CircleAvatar(
+                          radius: 18,
+                          backgroundColor: softBlue,
+                          child: Icon(Icons.person, color: navy, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                comment.userName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(comment.message),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: commentController,
+                  decoration: InputDecoration(
+                    hintText: 'Write a comment',
+                    filled: true,
+                    fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton.filled(
+                style: IconButton.styleFrom(backgroundColor: navy),
+                onPressed: widget.viewModel.busy
+                    ? null
+                    : () async {
+                        final success = await widget.viewModel.addComment(
+                          commentController.text,
+                        );
+                        if (success) commentController.clear();
+                        showResult(success, 'Comment added.');
+                      },
+                icon: const Icon(Icons.send),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Legacy renderer retained for old completed records; it is intentionally not
+  // displayed because new ratings are collected only by the End Post action.
+  // ignore: unused_element
+  Widget _ratings(RequestPost post) {
+    return _section(
+      title: 'Rating & Review',
+      icon: Icons.star_rounded,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          StreamBuilder<List<RequestRating>>(
+            stream: widget.viewModel.ratings,
+            builder: (context, snapshot) {
+              final ratings = snapshot.data ?? const [];
+
+              if (ratings.isEmpty) {
+                return _emptyState(
+                  icon: Icons.star_border_rounded,
+                  title: 'No ratings yet',
+                  message: 'Ratings will appear after the skill exchange ends.',
+                );
+              }
+
+              return Column(
+                children: ratings.map((rating) {
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFE7EAF3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '★' * rating.stars,
+                          style: TextStyle(
+                            color: Colors.amber.shade700,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          rating.review.isEmpty
+                              ? 'No written review'
+                              : rating.review,
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              );
+            },
+          ),
+          if (post.status == RequestPostStatus.completed &&
+              (widget.viewModel.currentUserId == post.userId ||
+                  widget.viewModel.currentUserId == post.matchedUserId)) ...[
+            const Divider(height: 28),
+            const Text(
+              'Leave your review',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: List.generate(5, (index) {
+                final star = index + 1;
+                return IconButton(
+                  onPressed: () => setState(() => selectedStars = star),
+                  icon: Icon(
+                    star <= selectedStars ? Icons.star : Icons.star_border,
+                    color: Colors.amber.shade700,
+                    size: 30,
+                  ),
+                );
+              }),
+            ),
+            TextField(
+              controller: reviewController,
+              maxLines: 3,
+              decoration: InputDecoration(
+                hintText: 'Share your experience',
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            _button('Submit Rating', Icons.star, () async {
+              final success = await widget.viewModel.submitRating(
+                post,
+                selectedStars,
+                reviewController.text,
+              );
+              if (success) reviewController.clear();
+              showResult(success, 'Rating submitted.');
+            }),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _section({
+    required String title,
+    required IconData icon,
+    required Widget child,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: navy, size: 23),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 21,
+                  fontWeight: FontWeight.bold,
+                  color: darkText,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _card(child: child),
+        ],
+      ),
+    );
+  }
+
+  Widget _card({required Widget child}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.95),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFE8ECF5)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  Widget _badge(RequestPostStatus status) {
+    final color = switch (status) {
+      RequestPostStatus.open => green,
+      RequestPostStatus.matched => peach,
+      RequestPostStatus.inProgress => peach,
+      RequestPostStatus.completed => const Color(0xFFD1D5DB),
+      RequestPostStatus.cancelled => const Color(0xFFD1D5DB),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        status.label,
+        style: const TextStyle(fontWeight: FontWeight.bold, color: darkText),
+      ),
+    );
+  }
+
+  Widget _progress(RequestPostStatus status) {
+    final step = switch (status) {
+      RequestPostStatus.open => 0,
+      RequestPostStatus.matched => 1,
+      RequestPostStatus.inProgress => 1,
+      RequestPostStatus.completed => 2,
+      RequestPostStatus.cancelled => 0,
+    };
+
+    const labels = ['Open', 'Matched', 'Done'];
+    const icons = [
+      Icons.radio_button_checked,
+      Icons.people,
+      Icons.check_circle,
+    ];
+
+    return Row(
+      children: List.generate(labels.length, (index) {
+        final active = index <= step;
+
+        return Expanded(
+          child: Column(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: active ? navy : const Color(0xFFE8ECF5),
+                child: Icon(
+                  icons[index],
+                  size: 18,
+                  color: active ? Colors.white : Colors.grey,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                height: 6,
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                decoration: BoxDecoration(
+                  color: active ? green : const Color(0xFFE8ECF5),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+              const SizedBox(height: 7),
+              Text(
+                labels[index],
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: active ? FontWeight.bold : FontWeight.normal,
+                  color: active ? darkText : Colors.grey,
+                ),
+              ),
+            ],
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _percentageCircle(int percentage) {
+    return Container(
+      width: 58,
+      height: 58,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: _matchColor(percentage).withValues(alpha: 0.13),
+        border: Border.all(color: _matchColor(percentage), width: 2),
+      ),
+      child: Center(
+        child: Text(
+          '$percentage%',
+          style: TextStyle(
+            color: _matchColor(percentage),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _skillChips(List<String> skills) {
+    if (skills.isEmpty) {
+      return const Text(
+        'No skills listed',
+        style: TextStyle(color: Colors.grey),
+      );
+    }
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: skills.map((skill) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: softBlue,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            skill,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: navy,
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _reasonBox(String reason) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE8ECF5)),
+      ),
+      child: Text(
+        reason,
+        style: const TextStyle(fontSize: 14, height: 1.4, color: darkText),
+      ),
+    );
+  }
+
+  Widget _emptyState({
+    required IconData icon,
+    required String title,
+    required String message,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE8ECF5)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 34, color: Colors.grey.shade600),
+          const SizedBox(height: 10),
+          Text(
+            title,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              color: darkText,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.35,
+              color: Colors.grey.shade700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _matchColor(int score) {
+    if (score >= 85) return Colors.green;
+    if (score >= 65) return Colors.orange;
+    return Colors.redAccent;
+  }
 
   String _matchReason(HelpOffer offer) {
     if (offer.matchScore >= 90) {
@@ -371,243 +1467,114 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
     }
   }
 
-  Widget _comments() => _section(
-    'Comments',
-    Column(
-      children: [
-        StreamBuilder<List<RequestComment>>(
-          stream: widget.viewModel.comments,
-          builder: (context, snapshot) {
-            final comments = snapshot.data ?? const [];
+  List<FinalCandidate> _combineCandidates(
+    List<AiMatch> aiMatches,
+    List<HelpOffer> offers,
+  ) {
+    final Map<String, FinalCandidate> result = {};
 
-            if (comments.isEmpty) return const Text('No comments yet.');
+    for (final ai in aiMatches) {
+      result[ai.userId] = FinalCandidate(
+        userId: ai.userId,
+        userName: ai.userName,
+        course: ai.course,
+        skills: ai.skills,
+        finalScore: ai.matchPercentage,
+        reason: ai.reason,
+        isAiSuggested: true,
+        isOfferHelper: false,
+        status: 'pending',
+      );
+    }
 
-            return Column(
-              children: comments
-                  .map(
-                    (comment) => ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const CircleAvatar(
-                    child: Icon(Icons.person),
-                  ),
-                  title: Text(comment.userName),
-                  subtitle: Text(comment.message),
-                ),
-              )
-                  .toList(),
-            );
-          },
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: commentController,
-                decoration: const InputDecoration(
-                  hintText: 'Write a comment',
-                  filled: true,
-                  fillColor: Colors.white,
-                ),
-              ),
-            ),
-            IconButton.filled(
-              onPressed: widget.viewModel.busy
-                  ? null
-                  : () async {
-                final success = await widget.viewModel.addComment(
-                  commentController.text,
-                );
-                if (success) commentController.clear();
-                showResult(success, 'Comment added.');
-              },
-              icon: const Icon(Icons.send),
-            ),
-          ],
-        ),
-      ],
-    ),
-  );
+    for (final offer in offers) {
+      final existing = result[offer.userId];
 
-  Widget _ratings(RequestPost post) => _section(
-    'Rating & Review',
-    Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        StreamBuilder<List<RequestRating>>(
-          stream: widget.viewModel.ratings,
-          builder: (context, snapshot) {
-            final ratings = snapshot.data ?? const [];
+      if (existing != null) {
+        final combinedScore =
+            ((existing.finalScore * 0.6) + (offer.matchScore * 0.4) + 8)
+                .round()
+                .clamp(0, 100);
 
-            if (ratings.isEmpty) return const Text('No ratings yet.');
-
-            return Column(
-              children: ratings
-                  .map(
-                    (rating) => ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Text(
-                    '${rating.stars} ★',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  title: Text(
-                    rating.review.isEmpty
-                        ? 'No written review'
-                        : rating.review,
-                  ),
-                ),
-              )
-                  .toList(),
-            );
-          },
-        ),
-        if (post.status == RequestPostStatus.completed &&
-            (widget.viewModel.currentUserId == post.userId ||
-                widget.viewModel.currentUserId == post.matchedUserId)) ...[
-          const Divider(height: 28),
-          Row(
-            children: List.generate(5, (index) {
-              final star = index + 1;
-              return IconButton(
-                onPressed: () => setState(() => selectedStars = star),
-                icon: Icon(
-                  star <= selectedStars ? Icons.star : Icons.star_border,
-                  color: Colors.amber.shade700,
-                ),
-              );
-            }),
-          ),
-          TextField(
-            controller: reviewController,
-            maxLines: 3,
-            decoration: const InputDecoration(
-              hintText: 'Share your experience',
-              filled: true,
-              fillColor: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 10),
-          _button('Submit Rating', Icons.star, () async {
-            final success = await widget.viewModel.submitRating(
-              post,
-              selectedStars,
-              reviewController.text,
-            );
-            if (success) reviewController.clear();
-            showResult(success, 'Rating submitted.');
-          }),
-        ],
-      ],
-    ),
-  );
-
-  Widget _section(String title, Widget child) => Padding(
-    padding: const EdgeInsets.only(top: 20),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: darkText,
-          ),
-        ),
-        const SizedBox(height: 10),
-        _card(child: child),
-      ],
-    ),
-  );
-
-  Widget _card({required Widget child}) => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.all(18),
-    decoration: BoxDecoration(
-      color: cardBlue,
-      borderRadius: BorderRadius.circular(20),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withValues(alpha: 0.14),
-          blurRadius: 6,
-          offset: const Offset(0, 3),
-        ),
-      ],
-    ),
-    child: child,
-  );
-
-  Widget _badge(RequestPostStatus status) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-    decoration: BoxDecoration(
-      color: status == RequestPostStatus.open ? green : peach,
-      borderRadius: BorderRadius.circular(20),
-    ),
-    child: Text(
-      status.label,
-      style: const TextStyle(fontWeight: FontWeight.bold),
-    ),
-  );
-
-  Widget _progress(RequestPostStatus status) {
-    final step = switch (status) {
-      RequestPostStatus.open => 0,
-      RequestPostStatus.matched => 1,
-      RequestPostStatus.inProgress => 2,
-      RequestPostStatus.completed => 3,
-      RequestPostStatus.cancelled => 0,
-    };
-
-    const labels = ['Open', 'Matched', 'Progress', 'Done'];
-
-    return Row(
-      children: List.generate(labels.length, (index) {
-        final active = index <= step;
-
-        return Expanded(
-          child: Column(
-            children: [
-              Container(
-                height: 8,
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                decoration: BoxDecoration(
-                  color: active ? green : Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-              ),
-              const SizedBox(height: 7),
-              Text(
-                labels[index],
-                style: TextStyle(
-                  fontWeight: active ? FontWeight.bold : null,
-                ),
-              ),
-            ],
-          ),
+        result[offer.userId] = FinalCandidate(
+          userId: offer.userId,
+          userName: offer.userName,
+          course: offer.course,
+          skills: offer.skills.isNotEmpty ? offer.skills : existing.skills,
+          finalScore: combinedScore,
+          reason:
+              '${existing.reason} This student also offered help, making this a stronger candidate.',
+          isAiSuggested: true,
+          isOfferHelper: true,
+          status: offer.status,
         );
-      }),
-    );
+      } else {
+        result[offer.userId] = FinalCandidate(
+          userId: offer.userId,
+          userName: offer.userName,
+          course: offer.course,
+          skills: offer.skills,
+          finalScore: offer.matchScore,
+          reason: _matchReason(offer),
+          isAiSuggested: false,
+          isOfferHelper: true,
+          status: offer.status,
+        );
+      }
+    }
+
+    final list = result.values.toList()
+      ..sort((a, b) => b.finalScore.compareTo(a.finalScore));
+
+    return list;
   }
 
   Widget _button(
-      String label,
-      IconData icon,
-      VoidCallback onPressed, {
-        bool secondary = false,
-      }) {
+    String label,
+    IconData icon,
+    VoidCallback onPressed, {
+    bool secondary = false,
+  }) {
     return SizedBox(
       width: double.infinity,
       child: FilledButton.icon(
         onPressed: widget.viewModel.busy ? null : onPressed,
         style: FilledButton.styleFrom(
-          backgroundColor: secondary ? Colors.white : const Color(0xFF1A1F5E),
+          backgroundColor: secondary ? Colors.white : navy,
           foregroundColor: secondary ? darkText : Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          side: secondary ? const BorderSide(color: navy) : null,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
         ),
         icon: Icon(icon),
         label: Text(label),
       ),
     );
   }
+}
+
+class FinalCandidate {
+  const FinalCandidate({
+    required this.userId,
+    required this.userName,
+    required this.course,
+    required this.skills,
+    required this.finalScore,
+    required this.reason,
+    required this.isAiSuggested,
+    required this.isOfferHelper,
+    required this.status,
+  });
+
+  final String userId;
+  final String userName;
+  final String course;
+  final List<String> skills;
+  final int finalScore;
+  final String reason;
+  final bool isAiSuggested;
+  final bool isOfferHelper;
+  final String status;
 }

@@ -6,7 +6,7 @@ void main() {
     test('maps Firestore values to typed states', () {
       expect(
         RequestPostStatus.fromValue('in_progress'),
-        RequestPostStatus.inProgress,
+        RequestPostStatus.matched,
       );
       expect(
         RequestPostStatus.fromValue('completed'),
@@ -19,8 +19,14 @@ void main() {
       expect(RequestPostStatus.fromValue('unexpected'), RequestPostStatus.open);
     });
 
-    test('serializes the in-progress state for Firestore', () {
-      expect(RequestPostStatus.inProgress.firestoreValue, 'in_progress');
+    test('normalizes the legacy in-progress state to matched', () {
+      expect(RequestPostStatus.inProgress.firestoreValue, 'matched');
+    });
+
+    test('uses the three public status labels', () {
+      expect(RequestPostStatus.open.label, 'Open');
+      expect(RequestPostStatus.matched.label, 'Matched');
+      expect(RequestPostStatus.completed.label, 'Done');
     });
   });
 }

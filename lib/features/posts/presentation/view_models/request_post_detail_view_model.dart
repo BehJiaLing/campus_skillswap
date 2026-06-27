@@ -1,36 +1,49 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../../core/services/groq_matching_service.dart';
 import '../../../auth/data/auth_repository.dart';
 import '../../../profile/data/user_profile_repository.dart';
+import '../../../profile/models/user_profile.dart';
 import '../../data/post_repository.dart';
+import '../../models/ai_match.dart';
 import '../../models/request_interactions.dart';
 import '../../models/request_post.dart';
 
 class RequestPostDetailViewModel extends ChangeNotifier {
   RequestPostDetailViewModel(
-    this._postRepository,
+    PostRepository postRepository,
     this._authRepository,
     this._profileRepository,
+    this._groqMatchingService,
     this.postId,
-  );
+  ) : _postRepository = postRepository {
+    post = postRepository.watchOne(postId);
+    offers = postRepository.watchOffers(postId);
+    aiMatches = postRepository.watchAiMatches(postId);
+    comments = postRepository.watchComments(postId);
+    ratings = postRepository.watchRatings(postId);
+  }
 
   final PostRepository _postRepository;
   final AuthRepository _authRepository;
   final UserProfileRepository _profileRepository;
+  final GroqMatchingService _groqMatchingService;
   final String postId;
 
   bool _busy = false;
   String? _errorMessage;
+  List<AiMatch> _rankedOffers = const [];
 
   bool get busy => _busy;
   String? get errorMessage => _errorMessage;
+  List<AiMatch> get rankedOffers => _rankedOffers;
   String? get currentUserId => _authRepository.currentUserId;
-  Stream<RequestPost?> get post => _postRepository.watchOne(postId);
-  Stream<List<HelpOffer>> get offers => _postRepository.watchOffers(postId);
-  Stream<List<RequestComment>> get comments =>
-      _postRepository.watchComments(postId);
-  Stream<List<RequestRating>> get ratings =>
-      _postRepository.watchRatings(postId);
+
+  late final Stream<RequestPost?> post;
+  late final Stream<List<HelpOffer>> offers;
+  late final Stream<List<AiMatch>> aiMatches;
+  late final Stream<List<RequestComment>> comments;
+  late final Stream<List<RequestRating>> ratings;
 
   bool isOwner(RequestPost post) => post.userId == currentUserId;
 
@@ -38,6 +51,68 @@ class RequestPostDetailViewModel extends ChangeNotifier {
       currentUserId != null &&
       !isOwner(post) &&
       post.status == RequestPostStatus.open;
+
+  Future<UserProfile?> getHelperProfile(String userId) =>
+      _profileRepository.getProfile(userId);
+
+  Future<bool> generateAiMatches(RequestPost post) async {
+    if (!isOwner(post)) {
+      return _fail('Only the request owner can generate AI matches.');
+    }
+
+    return _run(() async {
+      final users = await _profileRepository.getAllProfiles();
+
+      final groqMatches = await _groqMatchingService.matchProfiles(
+        post: post,
+        users: users,
+      );
+
+      final matches = groqMatches.map((match) {
+        return AiMatch(
+          userId: match.userId,
+          userName: match.userName,
+          course: match.course,
+          skills: match.skills,
+          matchPercentage: match.matchPercentage,
+          reason: match.reason,
+        );
+      }).toList();
+
+      await _postRepository.saveAiMatches(postId, matches);
+    });
+  }
+
+  Future<bool> rankHelperOffers(
+    RequestPost post,
+    List<HelpOffer> offers,
+  ) async {
+    if (!isOwner(post)) {
+      return _fail('Only the request owner can rank helper offers.');
+    }
+    if (offers.length < 2) {
+      return _fail('At least two helper offers are needed for AI ranking.');
+    }
+
+    return _run(() async {
+      final ranked = await _groqMatchingService.rankOffers(
+        post: post,
+        offers: offers,
+      );
+      _rankedOffers = ranked
+          .map(
+            (match) => AiMatch(
+              userId: match.userId,
+              userName: match.userName,
+              course: match.course,
+              skills: match.skills,
+              matchPercentage: match.matchPercentage,
+              reason: match.reason,
+            ),
+          )
+          .toList(growable: false);
+    });
+  }
 
   Future<bool> offerHelp(RequestPost post) async {
     final userId = currentUserId;
@@ -59,6 +134,7 @@ class RequestPostDetailViewModel extends ChangeNotifier {
         'userId': userId,
         'userName': profile.name,
         'course': profile.course,
+        'campus': profile.campus,
         'skills': profile.skills,
         'matchScore': score,
       }),
@@ -95,30 +171,16 @@ class RequestPostDetailViewModel extends ChangeNotifier {
     });
   }
 
-  Future<bool> advanceStatus(RequestPost post) {
-    if (!isOwner(post)) {
-      return Future.value(_fail('Only the request owner can update status.'));
-    }
-    final next = switch (post.status) {
-      RequestPostStatus.matched => RequestPostStatus.inProgress,
-      RequestPostStatus.inProgress => RequestPostStatus.completed,
-      _ => null,
-    };
-    if (next == null) {
-      return Future.value(_fail('This request cannot advance yet.'));
-    }
-    return _run(() => _postRepository.updateStatus(postId, next));
-  }
-
   Future<bool> submitRating(RequestPost post, int stars, String review) {
     final userId = currentUserId;
     if (userId == null) return Future.value(_fail('Please sign in again.'));
-    if (post.status != RequestPostStatus.completed) {
-      return Future.value(_fail('Complete the request before rating.'));
+    if (!isOwner(post) || post.status != RequestPostStatus.matched) {
+      return Future.value(
+        _fail('Only the requester can end and rate this match.'),
+      );
     }
-    final targetId = isOwner(post) ? post.matchedUserId : post.userId;
-    if (targetId == null ||
-        (userId != post.userId && userId != post.matchedUserId)) {
+    final targetId = post.matchedUserId;
+    if (targetId == null || userId != post.userId) {
       return Future.value(
         _fail('Only matched participants can submit a rating.'),
       );
@@ -146,12 +208,73 @@ class RequestPostDetailViewModel extends ChangeNotifier {
     try {
       await action();
       return true;
-    } catch (_) {
-      _errorMessage = 'Unable to complete that action. Please try again.';
+    } catch (e) {
+      _errorMessage = e.toString().replaceFirst('Exception: ', '');
       return false;
     } finally {
       _busy = false;
       notifyListeners();
     }
+  }
+
+  Future<bool> acceptCandidate(
+    RequestPost post, {
+    required String helperId,
+    required String helperName,
+  }) {
+    if (!isOwner(post)) {
+      return Future.value(_fail('Only the request owner can choose a helper.'));
+    }
+
+    return _run(() async {
+      await _postRepository.acceptOffer(
+        postId: postId,
+        ownerId: post.userId,
+        helperId: helperId,
+        helperName: helperName,
+      );
+    });
+  }
+
+  Future<bool> respondToInvitation({
+    required String notificationId,
+    required bool accepted,
+  }) {
+    final userId = currentUserId;
+    if (userId == null) return Future.value(_fail('Please sign in again.'));
+    return _run(
+      () => _postRepository.respondToInvitation(
+        notificationId: notificationId,
+        postId: postId,
+        helperId: userId,
+        accepted: accepted,
+      ),
+    );
+  }
+
+  Future<bool> respondToPendingInvitation(bool accepted) {
+    final userId = currentUserId;
+    if (userId == null) return Future.value(_fail('Please sign in again.'));
+    return _run(
+      () => _postRepository.respondToPendingInvitation(
+        postId: postId,
+        helperId: userId,
+        accepted: accepted,
+      ),
+    );
+  }
+
+  Future<bool> cancelHelperInvitation(RequestPost post) {
+    if (!isOwner(post)) {
+      return Future.value(
+        _fail('Only the requester can cancel this invitation.'),
+      );
+    }
+    return _run(
+      () => _postRepository.cancelHelperInvitation(
+        postId: postId,
+        ownerId: post.userId,
+      ),
+    );
   }
 }

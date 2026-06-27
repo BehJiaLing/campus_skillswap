@@ -22,6 +22,14 @@ class UserProfileRepository {
     });
   }
 
+  Future<List<UserProfile>> getAllProfiles() async {
+    final snapshot = await _service.fetchAllProfiles();
+
+    return snapshot.docs.map((document) {
+      return _fromMap(document.id, document.data());
+    }).toList();
+  }
+
   Future<void> createProfile({
     required String userId,
     required String? email,

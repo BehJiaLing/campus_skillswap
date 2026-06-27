@@ -4,6 +4,8 @@ import '../../../core/errors/app_exception.dart';
 import '../models/request_post.dart';
 import '../models/request_interactions.dart';
 import 'firebase_post_service.dart';
+import '../models/ai_match.dart';
+import '../../notifications/models/app_notification.dart';
 
 /// Source of truth for request posts.
 class PostRepository {
@@ -51,6 +53,7 @@ class PostRepository {
               userId: _text(data['userId'], fallback: document.id),
               userName: _text(data['userName'], fallback: 'Student'),
               course: _text(data['course'], fallback: 'Student'),
+              campus: _text(data['campus'], fallback: 'Campus not provided'),
               skills: _stringList(data['skills']),
               matchScore: (data['matchScore'] as num?)?.toInt() ?? 0,
               status: _text(data['status'], fallback: 'pending'),
@@ -95,8 +98,88 @@ class PostRepository {
         );
   }
 
+  Stream<List<AiMatch>> watchAiMatches(String postId) {
+    return _service
+        .watchAiMatches(postId)
+        .map(
+          (snapshot) => snapshot.docs.map((document) {
+            final data = document.data();
+
+            return AiMatch(
+              userId: _text(data['userId'], fallback: document.id),
+              userName: _text(data['userName'], fallback: 'Student'),
+              course: _text(data['course'], fallback: 'Student'),
+              skills: _stringList(data['skills']),
+              matchPercentage: (data['matchPercentage'] as num?)?.toInt() ?? 0,
+              reason: _text(data['reason']),
+            );
+          }).toList(),
+        );
+  }
+
+  Future<void> saveAiMatches(String postId, List<AiMatch> matches) {
+    return _service.saveAiMatches(postId, matches);
+  }
+
   Future<void> offerHelp(String postId, Map<String, dynamic> data) =>
       _service.offerHelp(postId, data);
+
+  Stream<List<AppNotification>> watchNotifications(String userId) {
+    return _service.watchNotifications(userId).map((snapshot) {
+      final items = snapshot.docs.map((document) {
+        final data = document.data();
+        return AppNotification(
+          id: document.id,
+          recipientId: _text(data['recipientId']),
+          senderId: _text(data['senderId']),
+          senderName: _text(data['senderName'], fallback: 'Campus SkillSwap'),
+          type: _text(data['type']),
+          postId: _text(data['postId']),
+          postTitle: _text(data['postTitle'], fallback: 'Skill request'),
+          message: _text(data['message']),
+          status: _text(data['status'], fallback: 'info'),
+          isRead: data['isRead'] == true,
+          createdAt: _date(data['createdAt']),
+        );
+      }).toList();
+      items.sort(
+        (a, b) => (b.createdAt ?? DateTime(1970)).compareTo(
+          a.createdAt ?? DateTime(1970),
+        ),
+      );
+      return items;
+    });
+  }
+
+  Future<void> markNotificationRead(String notificationId) =>
+      _service.markNotificationRead(notificationId);
+
+  Future<void> respondToInvitation({
+    required String notificationId,
+    required String postId,
+    required String helperId,
+    required bool accepted,
+  }) => _service.respondToInvitation(
+    notificationId: notificationId,
+    postId: postId,
+    helperId: helperId,
+    accepted: accepted,
+  );
+
+  Future<void> respondToPendingInvitation({
+    required String postId,
+    required String helperId,
+    required bool accepted,
+  }) => _service.respondToPendingInvitation(
+    postId: postId,
+    helperId: helperId,
+    accepted: accepted,
+  );
+
+  Future<void> cancelHelperInvitation({
+    required String postId,
+    required String ownerId,
+  }) => _service.cancelHelperInvitation(postId: postId, ownerId: ownerId);
 
   Future<void> addComment(String postId, Map<String, dynamic> data) =>
       _service.addComment(postId, data);
@@ -137,6 +220,8 @@ class PostRepository {
       matchedUserName: _nullableText(data['matchedUserName']),
       matchedUserId: _nullableText(data['matchedUserId']),
       chatId: _nullableText(data['chatId']),
+      pendingHelperName: _nullableText(data['pendingHelperName']),
+      pendingHelperId: _nullableText(data['pendingHelperId']),
     );
   }
 
