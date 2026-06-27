@@ -3,6 +3,11 @@
         android:label="campus_skillswap"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- Skia is more reliable than Impeller's OpenGL backend on Android
+             emulators and avoids black/corrupted frames on dashboard screens. -->
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableImpeller"
+            android:value="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
