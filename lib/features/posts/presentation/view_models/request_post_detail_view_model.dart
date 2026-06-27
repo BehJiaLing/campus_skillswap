@@ -31,10 +31,12 @@ class RequestPostDetailViewModel extends ChangeNotifier {
   final String postId;
 
   bool _busy = false;
+  bool _commentBusy = false;
   String? _errorMessage;
   List<AiMatch> _rankedOffers = const [];
 
   bool get busy => _busy;
+  bool get commentBusy => _commentBusy;
   String? get errorMessage => _errorMessage;
   List<AiMatch> get rankedOffers => _rankedOffers;
   String? get currentUserId => _authRepository.currentUserId;
@@ -50,6 +52,7 @@ class RequestPostDetailViewModel extends ChangeNotifier {
   bool canOffer(RequestPost post) =>
       currentUserId != null &&
       !isOwner(post) &&
+      post.pendingHelperId == null &&
       post.status == RequestPostStatus.open;
 
   Future<UserProfile?> getHelperProfile(String userId) =>
@@ -147,14 +150,45 @@ class RequestPostDetailViewModel extends ChangeNotifier {
     if (userId == null) return _fail('Please sign in again.');
     if (cleanMessage.isEmpty) return _fail('Write a comment first.');
     final profile = await _profileRepository.getProfile(userId);
-    return _run(
-      () => _postRepository.addComment(postId, {
+    _commentBusy = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      await _postRepository.addComment(postId, {
         'userId': userId,
         'userName':
             profile?.name ?? _authRepository.currentUserEmail ?? 'Student',
         'message': cleanMessage,
-      }),
-    );
+      });
+      return true;
+    } catch (error) {
+      _errorMessage = error.toString().replaceFirst('Exception: ', '');
+      return false;
+    } finally {
+      _commentBusy = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> updatePost(RequestPost post, UpdateRequestPostInput input) {
+    if (!isOwner(post)) {
+      return Future.value(_fail('Only the owner can edit this post.'));
+    }
+    if (input.title.trim().isEmpty ||
+        input.skillNeeded.trim().isEmpty ||
+        input.description.trim().isEmpty) {
+      return Future.value(
+        _fail('Post name, skill and description are required.'),
+      );
+    }
+    return _run(() => _postRepository.updatePost(postId, input));
+  }
+
+  Future<bool> deletePost(RequestPost post) {
+    if (!isOwner(post)) {
+      return Future.value(_fail('Only the owner can delete this post.'));
+    }
+    return _run(() => _postRepository.softDeletePost(postId, post.userId));
   }
 
   Future<bool> acceptOffer(RequestPost post, HelpOffer offer) {
@@ -252,7 +286,10 @@ class RequestPostDetailViewModel extends ChangeNotifier {
     );
   }
 
-  Future<bool> respondToPendingInvitation(bool accepted) {
+  Future<bool> respondToPendingInvitation(
+    bool accepted, {
+    String? rejectionMessage,
+  }) {
     final userId = currentUserId;
     if (userId == null) return Future.value(_fail('Please sign in again.'));
     return _run(
@@ -260,6 +297,7 @@ class RequestPostDetailViewModel extends ChangeNotifier {
         postId: postId,
         helperId: userId,
         accepted: accepted,
+        rejectionMessage: rejectionMessage,
       ),
     );
   }

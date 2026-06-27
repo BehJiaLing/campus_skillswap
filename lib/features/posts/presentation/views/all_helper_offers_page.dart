@@ -5,6 +5,7 @@ import '../../models/ai_match.dart';
 import '../../models/request_interactions.dart';
 import '../../models/request_post.dart';
 import '../view_models/request_post_detail_view_model.dart';
+import '../../../profile/presentation/views/user_profile_dialog.dart';
 
 class AllHelperOffersPage extends StatelessWidget {
   const AllHelperOffersPage({
@@ -40,11 +41,13 @@ class AllHelperOffersPage extends StatelessWidget {
           loading: viewModel.busy,
           message: 'AI is ranking helper offers...',
           child: Scaffold(
-            backgroundColor: const Color(0xFFF7F8FC),
+            backgroundColor: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF0F172A)
+                : const Color(0xFFF4F7FB),
             appBar: AppBar(
               title: Text('All Helper Offers (${offers.length})'),
-              backgroundColor: const Color(0xFFF7F8FC),
-              foregroundColor: const Color(0xFF1F223D),
+              backgroundColor: navy,
+              foregroundColor: Colors.white,
             ),
             body: ListView(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
@@ -98,153 +101,168 @@ class AllHelperOffersPage extends StatelessWidget {
     AiMatch? ranking,
     int? rank,
   ) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: rank == 1 ? const Color(0xFFFFC857) : const Color(0xFFE7EAF3),
-          width: rank == 1 ? 2 : 1,
+    return GestureDetector(
+      onTap: () => showUserProfileDialog(context, userId: offer.userId),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: rank == 1
+                ? const Color(0xFFFFC857)
+                : const Color(0xFFE7EAF3),
+            width: rank == 1 ? 2 : 1,
+          ),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (rank == 1)
-            Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF3C4),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Text(
-                'Top AI Recommendation',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF8A5A00),
-                ),
-              ),
-            ),
-          Row(
-            children: [
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (rank == 1)
               Container(
-                width: 58,
-                height: 58,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: ranking == null
-                      ? const Color(0xFFEAF2FF)
-                      : _matchColor(
-                          ranking.matchPercentage,
-                        ).withValues(alpha: .13),
-                  border: ranking == null
-                      ? null
-                      : Border.all(
-                          color: _matchColor(ranking.matchPercentage),
-                          width: 2,
-                        ),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
                 ),
-                alignment: Alignment.center,
-                child: ranking == null
-                    ? const Icon(Icons.person, color: navy, size: 31)
-                    : Text(
-                        '${ranking.matchPercentage}%',
-                        style: TextStyle(
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF3C4),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  'Top AI Recommendation',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF8A5A00),
+                  ),
+                ),
+              ),
+            Row(
+              children: [
+                GestureDetector(
+                  onTap: () =>
+                      showUserProfileDialog(context, userId: offer.userId),
+                  child: Container(
+                    width: 58,
+                    height: 58,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: ranking == null
+                          ? const Color(0xFFEAF2FF)
+                          : _matchColor(
+                              ranking.matchPercentage,
+                            ).withValues(alpha: .13),
+                      border: ranking == null
+                          ? null
+                          : Border.all(
+                              color: _matchColor(ranking.matchPercentage),
+                              width: 2,
+                            ),
+                    ),
+                    alignment: Alignment.center,
+                    child: ranking == null
+                        ? const Icon(Icons.person, color: navy, size: 31)
+                        : Text(
+                            '${ranking.matchPercentage}%',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: _matchColor(ranking.matchPercentage),
+                            ),
+                          ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${rank == null ? '' : '#$rank '}${offer.userName}',
+                        style: const TextStyle(
+                          fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: _matchColor(ranking.matchPercentage),
                         ),
                       ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${rank == null ? '' : '#$rank '}${offer.userName}',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                      Text(
+                        offer.course,
+                        style: const TextStyle(color: Colors.grey),
                       ),
-                    ),
-                    Text(
-                      offer.course,
-                      style: const TextStyle(color: Colors.grey),
-                    ),
-                  ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (ranking != null) ...[
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: offer.skills
+                    .map(
+                      (skill) => Chip(
+                        label: Text(skill),
+                        backgroundColor: const Color(0xFFEAF2FF),
+                        side: BorderSide.none,
+                      ),
+                    )
+                    .toList(),
+              ),
+              const SizedBox(height: 12),
+              LinearProgressIndicator(
+                value: ranking.matchPercentage / 100,
+                minHeight: 8,
+                backgroundColor: Colors.grey.shade200,
+                color: _matchColor(ranking.matchPercentage),
+                borderRadius: BorderRadius.circular(30),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF2F5FA),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  ranking.reason,
+                  style: const TextStyle(height: 1.4),
                 ),
               ),
             ],
-          ),
-          if (ranking != null) ...[
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: offer.skills
-                  .map(
-                    (skill) => Chip(
-                      label: Text(skill),
-                      backgroundColor: const Color(0xFFEAF2FF),
-                      side: BorderSide.none,
-                    ),
-                  )
-                  .toList(),
-            ),
-            const SizedBox(height: 12),
-            LinearProgressIndicator(
-              value: ranking.matchPercentage / 100,
-              minHeight: 8,
-              backgroundColor: Colors.grey.shade200,
-              color: _matchColor(ranking.matchPercentage),
-              borderRadius: BorderRadius.circular(30),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF2F5FA),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Text(ranking.reason, style: const TextStyle(height: 1.4)),
-            ),
-          ],
-          if (post.status == RequestPostStatus.open) ...[
-            const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: viewModel.busy
-                    ? null
-                    : () async {
-                        final ok = await viewModel.acceptCandidate(
-                          post,
-                          helperId: offer.userId,
-                          helperName: offer.userName,
-                        );
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              ok
-                                  ? '${offer.userName} was selected.'
-                                  : viewModel.errorMessage ??
-                                        'Unable to select helper.',
+            if (post.status == RequestPostStatus.open) ...[
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: viewModel.busy
+                      ? null
+                      : () async {
+                          final ok = await viewModel.acceptCandidate(
+                            post,
+                            helperId: offer.userId,
+                            helperName: offer.userName,
+                          );
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                ok
+                                    ? '${offer.userName} was selected.'
+                                    : viewModel.errorMessage ??
+                                          'Unable to select helper.',
+                              ),
                             ),
-                          ),
-                        );
-                        if (ok) Navigator.pop(context);
-                      },
-                icon: const Icon(Icons.person_add_alt_1),
-                label: const Text('Choose This Helper'),
+                          );
+                          if (ok) Navigator.pop(context);
+                        },
+                  icon: const Icon(Icons.person_add_alt_1),
+                  label: const Text('Choose This Helper'),
+                ),
               ),
-            ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

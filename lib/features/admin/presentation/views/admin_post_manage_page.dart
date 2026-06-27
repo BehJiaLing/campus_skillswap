@@ -77,8 +77,9 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
     try {
       final admin = FirebaseAuth.instance.currentUser;
 
-      final postRef =
-      FirebaseFirestore.instance.collection('posts').doc(post.postId);
+      final postRef = FirebaseFirestore.instance
+          .collection('posts')
+          .doc(post.postId);
 
       final postSnapshot = await postRef.get();
       final originalData = postSnapshot.data() ?? {};
@@ -107,9 +108,30 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
         'originalData': originalData,
       });
 
-      batch.delete(postRef);
+      batch.update(postRef, {
+        'isDeleted': true,
+        'previousStatus': originalData['status'] ?? 'open',
+        'deletedAt': FieldValue.serverTimestamp(),
+        'deletedByUid': admin?.uid,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
 
       await batch.commit();
+
+      if (post.ownerUid.isNotEmpty) {
+        await FirebaseFirestore.instance.collection('notifications').add({
+          'recipientId': post.ownerUid,
+          'senderId': admin?.uid ?? '',
+          'senderName': 'Campus SkillSwap Admin',
+          'type': 'post_deleted',
+          'postId': post.postId,
+          'postTitle': post.title,
+          'message': 'Your post was removed and moved to the recovery audit.',
+          'status': 'rejected',
+          'isRead': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
 
       if (!context.mounted) return;
 
@@ -177,43 +199,58 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
     try {
       final admin = FirebaseAuth.instance.currentUser;
 
-      final postRef =
-      FirebaseFirestore.instance.collection('posts').doc(post.postId);
+      final postRef = FirebaseFirestore.instance
+          .collection('posts')
+          .doc(post.postId);
 
       await postRef.set({
         'isBanned': true,
         'banned': true,
-        'status': 'banned',
         'bannedAt': FieldValue.serverTimestamp(),
         'bannedByUid': admin?.uid,
         'bannedByEmail': admin?.email,
         'banReason': 'Banned from Post Management',
       }, SetOptions(merge: true));
 
+      if (post.ownerUid.isNotEmpty) {
+        await FirebaseFirestore.instance.collection('notifications').add({
+          'recipientId': post.ownerUid,
+          'senderId': admin?.uid ?? '',
+          'senderName': 'Campus SkillSwap Admin',
+          'type': 'post_banned',
+          'postId': post.postId,
+          'postTitle': post.title,
+          'message': 'Your post was banned by an administrator.',
+          'status': 'rejected',
+          'isRead': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
       await FirebaseFirestore.instance
           .collection('banned_posts_history')
           .doc(post.postId)
           .set({
-        'postId': post.postId,
-        'title': post.title,
-        'postTitle': post.title,
-        'description': post.description,
-        'postedBy': post.postedBy,
-        'ownerUid': post.ownerUid,
-        'ownerEmail': post.ownerEmail,
-        'course': post.course,
-        'skills': post.skills,
-        'bannedAt': FieldValue.serverTimestamp(),
-        'bannedByUid': admin?.uid,
-        'bannedByEmail': admin?.email,
-        'status': 'banned',
-      }, SetOptions(merge: true));
+            'postId': post.postId,
+            'title': post.title,
+            'postTitle': post.title,
+            'description': post.description,
+            'postedBy': post.postedBy,
+            'ownerUid': post.ownerUid,
+            'ownerEmail': post.ownerEmail,
+            'course': post.course,
+            'skills': post.skills,
+            'bannedAt': FieldValue.serverTimestamp(),
+            'bannedByUid': admin?.uid,
+            'bannedByEmail': admin?.email,
+            'status': 'moderation_banned',
+          }, SetOptions(merge: true));
 
       if (!context.mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Post banned successfully')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Post banned successfully')));
     } catch (e) {
       if (!context.mounted) return;
 
@@ -246,10 +283,10 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
   }
 
   String getText(
-      Map<String, dynamic> data,
-      List<String> keys,
-      String fallback,
-      ) {
+    Map<String, dynamic> data,
+    List<String> keys,
+    String fallback,
+  ) {
     for (final key in keys) {
       if (data[key] != null && data[key].toString().trim().isNotEmpty) {
         return data[key].toString();
@@ -301,9 +338,9 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
   }
 
   String getCourse(
-      Map<String, dynamic> postData,
-      Map<String, dynamic> userData,
-      ) {
+    Map<String, dynamic> postData,
+    Map<String, dynamic> userData,
+  ) {
     final postCourse = getText(postData, [
       'course',
       'studentCourse',
@@ -326,9 +363,9 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
   }
 
   List<String> getSkills(
-      Map<String, dynamic> postData,
-      Map<String, dynamic> userData,
-      ) {
+    Map<String, dynamic> postData,
+    Map<String, dynamic> userData,
+  ) {
     final List<String> skills = [];
 
     void addSkill(dynamic value) {
@@ -465,76 +502,85 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
                 }
               }
 
-              final List<_PostViewData> allPosts = posts.map((post) {
-                final data = post.data();
+              final List<_PostViewData> allPosts = posts
+                  .where((post) => post.data()['isDeleted'] != true)
+                  .map((post) {
+                    final data = post.data();
 
-                final linkedUser = findUserData(
-                  postData: data,
-                  usersByUid: usersByUid,
-                  usersByEmail: usersByEmail,
-                );
+                    final linkedUser = findUserData(
+                      postData: data,
+                      usersByUid: usersByUid,
+                      usersByEmail: usersByEmail,
+                    );
 
-                final userData = linkedUser.data;
+                    final userData = linkedUser.data;
 
-                final title = getText(data, [
-                  'title',
-                  'postTitle',
-                  'skillTitle',
-                  'subject',
-                ], 'No title');
+                    final title = getText(data, [
+                      'title',
+                      'postTitle',
+                      'skillTitle',
+                      'subject',
+                    ], 'No title');
 
-                final description = getText(data, [
-                  'description',
-                  'content',
-                  'details',
-                  'message',
-                ], 'No description');
+                    final description = getText(data, [
+                      'description',
+                      'content',
+                      'details',
+                      'message',
+                    ], 'No description');
 
-                final postEmail = getText(data, [
-                  'userEmail',
-                  'email',
-                  'postedBy',
-                  'createdBy',
-                  'authorEmail',
-                ], '');
+                    final postEmail = getText(data, [
+                      'userEmail',
+                      'email',
+                      'postedBy',
+                      'createdBy',
+                      'authorEmail',
+                    ], '');
 
-                final userEmail = getText(userData, ['email'], '');
-                final userName = getText(userData, ['name', 'fullName'], '');
+                    final userEmail = getText(userData, ['email'], '');
+                    final userName = getText(userData, [
+                      'name',
+                      'fullName',
+                    ], '');
 
-                final postedBy = postEmail.isNotEmpty
-                    ? postEmail
-                    : userEmail.isNotEmpty
-                    ? userEmail
-                    : userName.isNotEmpty
-                    ? userName
-                    : 'Unknown user';
+                    final postedBy = postEmail.isNotEmpty
+                        ? postEmail
+                        : userEmail.isNotEmpty
+                        ? userEmail
+                        : userName.isNotEmpty
+                        ? userName
+                        : 'Unknown user';
 
-                final ownerEmail = userEmail.isNotEmpty ? userEmail : postEmail;
+                    final ownerEmail = userEmail.isNotEmpty
+                        ? userEmail
+                        : postEmail;
 
-                final createdAt = formatDate(data['createdAt']);
-                final createdDate = getDateTime(data['createdAt']);
+                    final createdAt = formatDate(data['createdAt']);
+                    final createdDate = getDateTime(data['createdAt']);
 
-                final course = getCourse(data, userData);
-                final skills = getSkills(data, userData);
+                    final course = getCourse(data, userData);
+                    final skills = getSkills(data, userData);
 
-                final isBanned = data['isBanned'] == true ||
-                    data['banned'] == true ||
-                    data['status'] == 'banned';
+                    final isBanned =
+                        data['isBanned'] == true ||
+                        data['banned'] == true ||
+                        data['status'] == 'banned';
 
-                return _PostViewData(
-                  postId: post.id,
-                  title: title,
-                  description: description,
-                  postedBy: postedBy,
-                  createdAt: createdAt,
-                  createdDate: createdDate,
-                  course: course,
-                  skills: skills,
-                  ownerUid: linkedUser.uid,
-                  ownerEmail: ownerEmail,
-                  isBanned: isBanned,
-                );
-              }).toList();
+                    return _PostViewData(
+                      postId: post.id,
+                      title: title,
+                      description: description,
+                      postedBy: postedBy,
+                      createdAt: createdAt,
+                      createdDate: createdDate,
+                      course: course,
+                      skills: skills,
+                      ownerUid: linkedUser.uid,
+                      ownerEmail: ownerEmail,
+                      isBanned: isBanned,
+                    );
+                  })
+                  .toList();
 
               final filteredPosts = allPosts.where((post) {
                 return matchesSearch(post);
@@ -558,22 +604,22 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
                   Expanded(
                     child: filteredPosts.isEmpty
                         ? Center(
-                      child: Text(
-                        'No posts found',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: isDark ? Colors.white60 : navy,
-                        ),
-                      ),
-                    )
+                            child: Text(
+                              'No posts found',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: isDark ? Colors.white60 : navy,
+                              ),
+                            ),
+                          )
                         : ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: filteredPosts.length,
-                      itemBuilder: (context, index) {
-                        final post = filteredPosts[index];
-                        return _postCard(context, post, isDark: isDark);
-                      },
-                    ),
+                            padding: const EdgeInsets.all(16),
+                            itemCount: filteredPosts.length,
+                            itemBuilder: (context, index) {
+                              final post = filteredPosts[index];
+                              return _postCard(context, post, isDark: isDark);
+                            },
+                          ),
                   ),
                 ],
               );
@@ -613,13 +659,13 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
               prefixIcon: Icon(Icons.search, color: subTextColor),
               suffixIcon: searchController.text.isNotEmpty
                   ? IconButton(
-                icon: Icon(Icons.clear, color: subTextColor),
-                onPressed: () {
-                  setState(() {
-                    searchController.clear();
-                  });
-                },
-              )
+                      icon: Icon(Icons.clear, color: subTextColor),
+                      onPressed: () {
+                        setState(() {
+                          searchController.clear();
+                        });
+                      },
+                    )
                   : null,
               filled: true,
               fillColor: fieldColor,
@@ -642,7 +688,7 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
           ),
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
-            value: sortOrder,
+            initialValue: sortOrder,
             dropdownColor: isDark ? darkCard : Colors.white,
             style: TextStyle(color: textColor),
             decoration: InputDecoration(
@@ -660,14 +706,8 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
               ),
             ),
             items: const [
-              DropdownMenuItem(
-                value: 'latest',
-                child: Text('Latest first'),
-              ),
-              DropdownMenuItem(
-                value: 'oldest',
-                child: Text('Oldest first'),
-              ),
+              DropdownMenuItem(value: 'latest', child: Text('Latest first')),
+              DropdownMenuItem(value: 'oldest', child: Text('Oldest first')),
             ],
             onChanged: (value) {
               if (value == null) return;
@@ -703,14 +743,13 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
   }
 
   Widget _postCard(
-      BuildContext context,
-      _PostViewData post, {
-        required bool isDark,
-      }) {
+    BuildContext context,
+    _PostViewData post, {
+    required bool isDark,
+  }) {
     final cardColor = isDark ? darkCard : Colors.white;
     final innerColor = isDark ? darkField : bg;
     final lineColor = isDark ? darkBorder : border;
-    final textColor = isDark ? Colors.white : const Color(0xFF1F223D);
     final subTextColor = isDark ? Colors.white60 : textMid;
     final titleColor = post.isBanned
         ? Colors.grey
@@ -827,8 +866,8 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
                     onPressed: post.isBanned
                         ? null
                         : () {
-                      banPost(context, post);
-                    },
+                            banPost(context, post);
+                          },
                     icon: Icon(
                       post.isBanned ? Icons.block : Icons.block_outlined,
                       size: 18,

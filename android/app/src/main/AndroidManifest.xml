@@ -1,8 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="campus_skillswap"
+        android:label="Campus SkillSwap"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@drawable/skillswap_logo"
+        android:roundIcon="@drawable/skillswap_logo">
         <!-- Skia is more reliable than Impeller's OpenGL backend on Android
              emulators and avoids black/corrupted frames on dashboard screens. -->
         <meta-data

@@ -140,6 +140,7 @@ class PostRepository {
           status: _text(data['status'], fallback: 'info'),
           isRead: data['isRead'] == true,
           createdAt: _date(data['createdAt']),
+          chatId: _nullableText(data['chatId']),
         );
       }).toList();
       items.sort(
@@ -159,21 +160,25 @@ class PostRepository {
     required String postId,
     required String helperId,
     required bool accepted,
+    String? rejectionMessage,
   }) => _service.respondToInvitation(
     notificationId: notificationId,
     postId: postId,
     helperId: helperId,
     accepted: accepted,
+    rejectionMessage: rejectionMessage,
   );
 
   Future<void> respondToPendingInvitation({
     required String postId,
     required String helperId,
     required bool accepted,
+    String? rejectionMessage,
   }) => _service.respondToPendingInvitation(
     postId: postId,
     helperId: helperId,
     accepted: accepted,
+    rejectionMessage: rejectionMessage,
   );
 
   Future<void> cancelHelperInvitation({
@@ -183,6 +188,12 @@ class PostRepository {
 
   Future<void> addComment(String postId, Map<String, dynamic> data) =>
       _service.addComment(postId, data);
+
+  Future<void> updatePost(String postId, UpdateRequestPostInput input) =>
+      _service.updatePost(postId, input);
+
+  Future<void> softDeletePost(String postId, String userId) =>
+      _service.softDeletePost(postId, userId);
 
   Future<void> updateStatus(String postId, RequestPostStatus status) =>
       _service.updateStatus(postId, status);
@@ -213,7 +224,12 @@ class PostRepository {
       title: _text(data['title'], fallback: 'No title'),
       description: _text(data['description']),
       skillNeeded: _text(data['skillNeeded']),
-      status: RequestPostStatus.fromValue(data['status']),
+      status: RequestPostStatus.fromValue(
+        data['status'] == 'active'
+            ? data['previousStatus'] ??
+                  (data['matchedUserId'] != null ? 'matched' : 'open')
+            : data['status'],
+      ),
       createdAt: _date(data['createdAt']),
       updatedAt: _date(data['updatedAt']),
       aiSuggestion: _nullableText(data['aiSuggestion']),
@@ -222,6 +238,11 @@ class PostRepository {
       chatId: _nullableText(data['chatId']),
       pendingHelperName: _nullableText(data['pendingHelperName']),
       pendingHelperId: _nullableText(data['pendingHelperId']),
+      isDeleted: data['isDeleted'] == true || data['deleted'] == true,
+      isBanned:
+          data['isBanned'] == true ||
+          data['banned'] == true ||
+          data['status'] == 'banned',
     );
   }
 

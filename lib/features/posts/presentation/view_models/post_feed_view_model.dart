@@ -5,7 +5,12 @@ class PostFeedViewModel {
   PostFeedViewModel(PostRepository postRepository)
     : posts = postRepository.watchAll().map(
         (posts) => posts
-            .where((post) => post.status == RequestPostStatus.open)
+            .where(
+              (post) =>
+                  post.status == RequestPostStatus.open &&
+                  !post.isDeleted &&
+                  !post.isBanned,
+            )
             .toList(growable: false),
       );
 

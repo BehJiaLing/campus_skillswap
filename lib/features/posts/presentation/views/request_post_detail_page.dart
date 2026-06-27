@@ -8,6 +8,7 @@ import '../../models/ai_match.dart';
 import '../../models/request_interactions.dart';
 import '../../models/request_post.dart';
 import '../../../profile/models/user_profile.dart';
+import '../../../profile/presentation/views/user_profile_dialog.dart';
 import '../view_models/request_post_detail_view_model.dart';
 import 'all_helper_offers_page.dart';
 
@@ -59,11 +60,13 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
           loading: widget.viewModel.busy,
           message: 'Updating request...',
           child: Scaffold(
-            backgroundColor: bg,
+            backgroundColor: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF0F172A)
+                : const Color(0xFFF4F7FB),
             appBar: AppBar(
               title: const Text('Request Details'),
-              backgroundColor: bg,
-              foregroundColor: darkText,
+              backgroundColor: navy,
+              foregroundColor: Colors.white,
               elevation: 0,
             ),
             body: StreamBuilder<RequestPost?>(
@@ -81,6 +84,19 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
 
                 if (post == null) {
                   return const Center(child: Text('Post not found'));
+                }
+
+                if (post.isBanned && !widget.viewModel.isOwner(post)) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Text(
+                        'This post has been banned and is unavailable.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 18, color: Colors.redAccent),
+                      ),
+                    ),
+                  );
                 }
 
                 return Scrollbar(
@@ -101,8 +117,7 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
                         if (widget.viewModel.isOwner(post) ||
                             post.pendingHelperId ==
                                 widget.viewModel.currentUserId ||
-                            post.matchedUserId ==
-                                widget.viewModel.currentUserId)
+                            post.matchedUserId != null)
                           _offers(post),
                         _actionArea(post),
                         _comments(),
@@ -136,7 +151,37 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _badge(post.status),
+          Row(
+            children: [
+              post.isBanned ? _bannedBadge() : _badge(post.status),
+              const Spacer(),
+              if (widget.viewModel.isOwner(post))
+                PopupMenuButton<String>(
+                  color: Theme.of(context).cardColor,
+                  iconColor: Colors.white,
+                  onSelected: (value) {
+                    if (value == 'edit') _showEditPostDialog(post);
+                    if (value == 'delete') _confirmDeletePost(post);
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                      value: 'edit',
+                      child: ListTile(
+                        leading: Icon(Icons.edit),
+                        title: Text('Edit Post'),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: ListTile(
+                        leading: Icon(Icons.delete_outline, color: Colors.red),
+                        title: Text('Delete Post'),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
           const SizedBox(height: 18),
           Text(
             post.title,
@@ -160,6 +205,46 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
         ],
       ),
     );
+  }
+
+  Future<void> _showEditPostDialog(RequestPost post) async {
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (_) => _EditPostDialog(
+        post: post,
+        onSave: (input) => widget.viewModel.updatePost(post, input),
+        errorMessage: () => widget.viewModel.errorMessage,
+      ),
+    );
+    if (saved == true) showResult(true, 'Post updated.');
+  }
+
+  Future<void> _confirmDeletePost(RequestPost post) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Post?'),
+        content: const Text(
+          'The post will disappear for users but remain recoverable by an administrator. Existing helper ratings and points will not be changed.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final ok = await widget.viewModel.deletePost(post);
+    if (!mounted) return;
+    showResult(ok, 'Post moved to the recovery audit.');
+    if (ok) Navigator.pop(context);
   }
 
   Widget _infoPill(IconData icon, String text) {
@@ -188,11 +273,25 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
     );
   }
 
+  Widget _bannedBadge() => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+    decoration: BoxDecoration(
+      color: Colors.red.shade100,
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: Colors.red),
+    ),
+    child: const Text(
+      'BANNED',
+      style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+    ),
+  );
+
   Widget _actionArea(RequestPost post) {
     Widget? action;
 
-    if (widget.viewModel.canOffer(post) &&
-        post.pendingHelperId != widget.viewModel.currentUserId) {
+    if (widget.viewModel.currentUserId != null &&
+        !widget.viewModel.isOwner(post) &&
+        post.status == RequestPostStatus.open) {
       action = StreamBuilder<List<HelpOffer>>(
         stream: widget.viewModel.offers,
         builder: (context, snapshot) {
@@ -200,11 +299,27 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
             (offer) => offer.userId == widget.viewModel.currentUserId,
           );
           if (sent) {
-            return FilledButton.icon(
-              onPressed: null,
-              icon: const Icon(Icons.check_circle),
-              label: const Text('Offer Sent'),
+            final onHold =
+                post.pendingHelperId != null &&
+                post.pendingHelperId != widget.viewModel.currentUserId;
+            return SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: null,
+                style: FilledButton.styleFrom(
+                  disabledBackgroundColor: onHold ? Colors.grey : Colors.green,
+                  disabledForegroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                icon: Icon(
+                  onHold ? Icons.hourglass_top_rounded : Icons.check_circle,
+                ),
+                label: Text(onHold ? 'Offer On Hold' : 'Offer Sent'),
+              ),
             );
+          }
+          if (post.pendingHelperId != null) {
+            return const SizedBox.shrink();
           }
           return _button('Offer Help', Icons.volunteer_activism, () async {
             showResult(
@@ -231,82 +346,88 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
     required int rank,
     VoidCallback? onChoose,
   }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isTop ? const Color(0xFFFFC857) : const Color(0xFFE7EAF3),
-          width: isTop ? 2 : 1,
+    return GestureDetector(
+      onTap: () => showUserProfileDialog(context, userId: match.userId),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isTop ? const Color(0xFFFFC857) : const Color(0xFFE7EAF3),
+            width: isTop ? 2 : 1,
+          ),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (isTop)
-            Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF3C4),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Text(
-                'Top AI Recommendation',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF8A5A00),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (isTop)
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF3C4),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  'Top AI Recommendation',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF8A5A00),
+                  ),
                 ),
               ),
-            ),
-          Row(
-            children: [
-              _percentageCircle(match.matchPercentage),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '#$rank ${match.userName}',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: darkText,
+            Row(
+              children: [
+                _percentageCircle(match.matchPercentage),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '#$rank ${match.userName}',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: darkText,
+                        ),
                       ),
-                    ),
-                    Text(match.course),
-                  ],
+                      Text(match.course),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            _skillChips(match.skills),
+            const SizedBox(height: 12),
+            LinearProgressIndicator(
+              value: match.matchPercentage / 100,
+              minHeight: 8,
+              backgroundColor: Colors.grey.shade200,
+              color: _matchColor(match.matchPercentage),
+              borderRadius: BorderRadius.circular(30),
+            ),
+            const SizedBox(height: 12),
+            _reasonBox(match.reason),
+            if (onChoose != null) ...[
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: onChoose,
+                  icon: const Icon(Icons.person_add_alt_1),
+                  label: const Text('Choose This Helper'),
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 14),
-          _skillChips(match.skills),
-          const SizedBox(height: 12),
-          LinearProgressIndicator(
-            value: match.matchPercentage / 100,
-            minHeight: 8,
-            backgroundColor: Colors.grey.shade200,
-            color: _matchColor(match.matchPercentage),
-            borderRadius: BorderRadius.circular(30),
-          ),
-          const SizedBox(height: 12),
-          _reasonBox(match.reason),
-          if (onChoose != null) ...[
-            const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: onChoose,
-                icon: const Icon(Icons.person_add_alt_1),
-                label: const Text('Choose This Helper'),
-              ),
-            ),
           ],
-        ],
+        ),
       ),
     );
   }
@@ -349,11 +470,7 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
                       child: OutlinedButton(
                         onPressed: widget.viewModel.busy
                             ? null
-                            : () async => showResult(
-                                await widget.viewModel
-                                    .respondToPendingInvitation(false),
-                                'Invitation rejected.',
-                              ),
+                            : _rejectInvitationWithMessage,
                         child: const Text('Reject'),
                       ),
                     ),
@@ -378,19 +495,29 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
     }
     if (post.matchedUserId != null && post.matchedUserName != null) {
       final isOwner = widget.viewModel.isOwner(post);
-      final otherId = isOwner ? post.matchedUserId! : post.userId;
-      final otherName = isOwner ? post.matchedUserName! : post.userName;
+      final isMatchedHelper =
+          widget.viewModel.currentUserId == post.matchedUserId;
+      final showRequester = !isOwner && isMatchedHelper;
+      final otherId = showRequester ? post.userId : post.matchedUserId!;
+      final otherName = showRequester ? post.userName : post.matchedUserName!;
       return _section(
-        title: isOwner ? 'Confirmed Helper' : 'Matched Requester',
+        title: showRequester ? 'Matched Requester' : 'Confirmed Helper',
         icon: Icons.verified_user_rounded,
         child: FutureBuilder<UserProfile?>(
           future: widget.viewModel.getHelperProfile(otherId),
-          builder: (context, snapshot) => _relationshipCard(
-            post: post,
-            profile: snapshot.data,
-            name: otherName,
-            otherUserId: otherId,
-            message: 'Both users confirmed this skill exchange.',
+          builder: (context, snapshot) => Column(
+            children: [
+              _relationshipCard(
+                post: post,
+                profile: snapshot.data,
+                name: otherName,
+                otherUserId: otherId,
+                message: '',
+                allowChat: isOwner || isMatchedHelper,
+              ),
+              if (post.status == RequestPostStatus.completed)
+                _finalRatingReview(post),
+            ],
           ),
         ),
       );
@@ -491,12 +618,50 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
     );
   }
 
+  Future<void> _rejectInvitationWithMessage() async {
+    final controller = TextEditingController();
+    final message = await showDialog<String?>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reject Invitation'),
+        content: TextField(
+          controller: controller,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            labelText: 'Message (optional)',
+            hintText: 'Let the requester know why',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('Reject'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (message == null) return;
+    showResult(
+      await widget.viewModel.respondToPendingInvitation(
+        false,
+        rejectionMessage: message,
+      ),
+      'Invitation rejected.',
+    );
+  }
+
   Widget _relationshipCard({
     required RequestPost post,
     required UserProfile? profile,
     required String name,
     required String otherUserId,
     required String message,
+    bool allowChat = true,
     List<Widget> actions = const [],
   }) {
     return Column(
@@ -505,15 +670,18 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CircleAvatar(
-              radius: 31,
-              backgroundColor: softBlue,
-              backgroundImage: profile?.photoUrl == null
-                  ? null
-                  : NetworkImage(profile!.photoUrl!),
-              child: profile?.photoUrl == null
-                  ? const Icon(Icons.person, color: navy, size: 33)
-                  : null,
+            GestureDetector(
+              onTap: () => showUserProfileDialog(context, userId: otherUserId),
+              child: CircleAvatar(
+                radius: 31,
+                backgroundColor: softBlue,
+                backgroundImage: profile?.photoUrl == null
+                    ? null
+                    : NetworkImage(profile!.photoUrl!),
+                child: profile?.photoUrl == null
+                    ? const Icon(Icons.person, color: navy, size: 33)
+                    : null,
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -536,7 +704,7 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
                 ],
               ),
             ),
-            if (post.chatId != null)
+            if (allowChat && post.chatId != null)
               IconButton.filled(
                 tooltip: 'Message $name',
                 onPressed: () => Navigator.push(
@@ -553,28 +721,73 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
               ),
           ],
         ),
-        if (profile != null && profile.skills.isNotEmpty) ...[
+        if (message.isNotEmpty &&
+            profile != null &&
+            profile.skills.isNotEmpty) ...[
           const SizedBox(height: 12),
           _skillChips(profile.skills),
         ],
-        const SizedBox(height: 12),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: softBlue,
-            borderRadius: BorderRadius.circular(14),
+        if (message.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: softBlue,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Text(
+              message,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
-          child: Text(
-            message,
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
-        ),
+        ],
         if (actions.isNotEmpty) ...[
           const SizedBox(height: 14),
           Row(children: actions),
         ],
       ],
+    );
+  }
+
+  Widget _finalRatingReview(RequestPost post) {
+    return StreamBuilder<List<RequestRating>>(
+      stream: widget.viewModel.ratings,
+      builder: (context, snapshot) {
+        final ratings = snapshot.data ?? const <RequestRating>[];
+        final matching = ratings
+            .where((rating) => rating.toUserId == post.matchedUserId)
+            .toList();
+        if (matching.isEmpty) return const SizedBox.shrink();
+        final rating = matching.first;
+        return Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(top: 16),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Final Rating & Comment',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '${'★' * rating.stars}${'☆' * (5 - rating.stars)}',
+                style: const TextStyle(color: Colors.amber, fontSize: 20),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                rating.review.isEmpty ? 'No written comment.' : rating.review,
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -585,80 +798,87 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
     int? rank,
   }) {
     final accepted = offer.status == 'accepted';
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: accepted ? Colors.green : const Color(0xFFE7EAF3),
-          width: accepted ? 2 : 1,
+    return GestureDetector(
+      onTap: () => showUserProfileDialog(context, userId: offer.userId),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: accepted ? Colors.green : const Color(0xFFE7EAF3),
+            width: accepted ? 2 : 1,
+          ),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              ranking == null
-                  ? const CircleAvatar(
-                      radius: 29,
-                      backgroundColor: softBlue,
-                      child: Icon(Icons.person, color: navy, size: 31),
-                    )
-                  : _percentageCircle(ranking.matchPercentage),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${rank == null ? '' : '#$rank '}${offer.userName}',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: darkText,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                GestureDetector(
+                  onTap: () =>
+                      showUserProfileDialog(context, userId: offer.userId),
+                  child: ranking == null
+                      ? const CircleAvatar(
+                          radius: 29,
+                          backgroundColor: softBlue,
+                          child: Icon(Icons.person, color: navy, size: 31),
+                        )
+                      : _percentageCircle(ranking.matchPercentage),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${rank == null ? '' : '#$rank '}${offer.userName}',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: darkText,
+                        ),
                       ),
-                    ),
-                    Text(
-                      offer.course,
-                      style: const TextStyle(color: Colors.grey),
-                    ),
-                  ],
+                      Text(
+                        offer.course,
+                        style: const TextStyle(color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ),
+                if (accepted)
+                  const Icon(Icons.check_circle, color: Colors.green, size: 30),
+              ],
+            ),
+            if (ranking != null) ...[
+              const SizedBox(height: 14),
+              _skillChips(offer.skills),
+              const SizedBox(height: 12),
+              _reasonBox(ranking.reason),
+            ],
+            if (post.status == RequestPostStatus.open && !accepted) ...[
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: widget.viewModel.busy
+                      ? null
+                      : () async => showResult(
+                          await widget.viewModel.acceptCandidate(
+                            post,
+                            helperId: offer.userId,
+                            helperName: offer.userName,
+                          ),
+                          '${offer.userName} has been selected as the helper.',
+                        ),
+                  icon: const Icon(Icons.person_add_alt_1),
+                  label: const Text('Choose This Helper'),
                 ),
               ),
-              if (accepted)
-                const Icon(Icons.check_circle, color: Colors.green, size: 30),
             ],
-          ),
-          if (ranking != null) ...[
-            const SizedBox(height: 14),
-            _skillChips(offer.skills),
-            const SizedBox(height: 12),
-            _reasonBox(ranking.reason),
           ],
-          if (post.status == RequestPostStatus.open && !accepted) ...[
-            const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: widget.viewModel.busy
-                    ? null
-                    : () async => showResult(
-                        await widget.viewModel.acceptCandidate(
-                          post,
-                          helperId: offer.userId,
-                          helperName: offer.userName,
-                        ),
-                        '${offer.userName} has been selected as the helper.',
-                      ),
-                icon: const Icon(Icons.person_add_alt_1),
-                label: const Text('Choose This Helper'),
-              ),
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }
@@ -705,6 +925,7 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
   Future<void> _showCompletionRatingDialog(RequestPost post) async {
     selectedStars = 5;
     reviewController.clear();
+    var saving = false;
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
@@ -723,8 +944,9 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
                 children: List.generate(
                   5,
                   (index) => IconButton(
-                    onPressed: () =>
-                        setDialogState(() => selectedStars = index + 1),
+                    onPressed: saving
+                        ? null
+                        : () => setDialogState(() => selectedStars = index + 1),
                     icon: Icon(
                       index < selectedStars ? Icons.star : Icons.star_border,
                       color: Colors.amber.shade700,
@@ -734,6 +956,7 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
               ),
               TextField(
                 controller: reviewController,
+                enabled: !saving,
                 maxLines: 3,
                 decoration: const InputDecoration(
                   labelText: 'Comment',
@@ -744,13 +967,14 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
+              onPressed: saving ? null : () => Navigator.pop(dialogContext),
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: widget.viewModel.busy
+              onPressed: saving
                   ? null
                   : () async {
+                      setDialogState(() => saving = true);
                       final ok = await widget.viewModel.submitRating(
                         post,
                         selectedStars,
@@ -758,9 +982,19 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
                       );
                       if (!dialogContext.mounted) return;
                       if (ok) Navigator.pop(dialogContext);
+                      if (!ok) setDialogState(() => saving = false);
                       showResult(ok, 'Post completed and helper rating saved.');
                     },
-              child: const Text('Complete Post'),
+              child: saving
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text('Complete Post'),
             ),
           ],
         ),
@@ -1033,10 +1267,16 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const CircleAvatar(
-                          radius: 18,
-                          backgroundColor: softBlue,
-                          child: Icon(Icons.person, color: navy, size: 20),
+                        GestureDetector(
+                          onTap: () => showUserProfileDialog(
+                            context,
+                            userId: comment.userId,
+                          ),
+                          child: const CircleAvatar(
+                            radius: 18,
+                            backgroundColor: softBlue,
+                            child: Icon(Icons.person, color: navy, size: 20),
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -1085,7 +1325,7 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
               const SizedBox(width: 8),
               IconButton.filled(
                 style: IconButton.styleFrom(backgroundColor: navy),
-                onPressed: widget.viewModel.busy
+                onPressed: widget.viewModel.commentBusy
                     ? null
                     : () async {
                         final success = await widget.viewModel.addComment(
@@ -1094,7 +1334,16 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
                         if (success) commentController.clear();
                         showResult(success, 'Comment added.');
                       },
-                icon: const Icon(Icons.send),
+                icon: widget.viewModel.commentBusy
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.send),
               ),
             ],
           ),
@@ -1227,10 +1476,10 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
               const SizedBox(width: 8),
               Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 21,
                   fontWeight: FontWeight.bold,
-                  color: darkText,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
             ],
@@ -1247,7 +1496,7 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.95),
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: const Color(0xFFE8ECF5)),
         boxShadow: [
@@ -1540,8 +1789,12 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
       child: FilledButton.icon(
         onPressed: widget.viewModel.busy ? null : onPressed,
         style: FilledButton.styleFrom(
-          backgroundColor: secondary ? Colors.white : navy,
-          foregroundColor: secondary ? darkText : Colors.white,
+          backgroundColor: secondary
+              ? Theme.of(context).colorScheme.surface
+              : navy,
+          foregroundColor: secondary
+              ? Theme.of(context).colorScheme.onSurface
+              : Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 14),
           side: secondary ? const BorderSide(color: navy) : null,
           shape: RoundedRectangleBorder(
@@ -1551,6 +1804,118 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
         icon: Icon(icon),
         label: Text(label),
       ),
+    );
+  }
+}
+
+class _EditPostDialog extends StatefulWidget {
+  const _EditPostDialog({
+    required this.post,
+    required this.onSave,
+    required this.errorMessage,
+  });
+
+  final RequestPost post;
+  final Future<bool> Function(UpdateRequestPostInput input) onSave;
+  final String? Function() errorMessage;
+
+  @override
+  State<_EditPostDialog> createState() => _EditPostDialogState();
+}
+
+class _EditPostDialogState extends State<_EditPostDialog> {
+  late final TextEditingController _title;
+  late final TextEditingController _skill;
+  late final TextEditingController _description;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _title = TextEditingController(text: widget.post.title);
+    _skill = TextEditingController(text: widget.post.skillNeeded);
+    _description = TextEditingController(text: widget.post.description);
+  }
+
+  @override
+  void dispose() {
+    _title.dispose();
+    _skill.dispose();
+    _description.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    final saved = await widget.onSave(
+      UpdateRequestPostInput(
+        title: _title.text,
+        skillNeeded: _skill.text,
+        description: _description.text,
+      ),
+    );
+    if (!mounted) return;
+    if (saved) {
+      Navigator.pop(context, true);
+      return;
+    }
+    setState(() {
+      _saving = false;
+      _error = widget.errorMessage() ?? 'Unable to update the post.';
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Edit Post'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _title,
+              enabled: !_saving,
+              decoration: const InputDecoration(labelText: 'Post name'),
+            ),
+            TextField(
+              controller: _skill,
+              enabled: !_saving,
+              decoration: const InputDecoration(labelText: 'Skill needed'),
+            ),
+            TextField(
+              controller: _description,
+              enabled: !_saving,
+              maxLines: 4,
+              decoration: const InputDecoration(labelText: 'Description'),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _saving ? null : _save,
+          child: _saving
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Save'),
+        ),
+      ],
     );
   }
 }

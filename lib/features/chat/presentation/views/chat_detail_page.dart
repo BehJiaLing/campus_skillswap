@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../../profile/presentation/views/user_profile_dialog.dart';
 
 class ChatDetailPage extends StatefulWidget {
   final String userName;
@@ -19,9 +20,12 @@ class ChatDetailPage extends StatefulWidget {
 }
 
 class _ChatDetailPageState extends State<ChatDetailPage> {
+  static const navy = Color(0xFF102A72);
+  static const green = Color(0xFF12A875);
   final TextEditingController messageController = TextEditingController();
 
   final ScrollController scrollController = ScrollController();
+  bool isSending = false;
 
   @override
   void initState() {
@@ -50,6 +54,28 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         });
       }
     }
+
+    await FirebaseFirestore.instance.collection('chats').doc(widget.chatId).set(
+      {
+        'unreadFor': {currentUserId: 0},
+      },
+      SetOptions(merge: true),
+    );
+
+    final notifications = await FirebaseFirestore.instance
+        .collection('notifications')
+        .where('recipientId', isEqualTo: currentUserId)
+        .get();
+    final batch = FirebaseFirestore.instance.batch();
+    for (final notification in notifications.docs) {
+      final data = notification.data();
+      if (data['type'] == 'chat_message' &&
+          data['chatId'] == widget.chatId &&
+          data['isRead'] != true) {
+        batch.update(notification.reference, {'isRead': true});
+      }
+    }
+    await batch.commit();
   }
 
   void scrollToBottom() {
@@ -67,62 +93,92 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
   }
 
   Future<void> sendMessage() async {
-    if (messageController.text.trim().isEmpty) {
+    if (messageController.text.trim().isEmpty || isSending) {
       return;
     }
 
+    setState(() => isSending = true);
+
     String newMessage = messageController.text.trim();
+    try {
+      await FirebaseFirestore.instance
+          .collection('chats')
+          .doc(widget.chatId)
+          .collection('messages')
+          .add({
+            'text': newMessage,
+            'senderId': FirebaseAuth.instance.currentUser!.uid,
+            'createdAt': FieldValue.serverTimestamp(),
 
-    await FirebaseFirestore.instance
-        .collection('chats')
-        .doc(widget.chatId)
-        .collection('messages')
-        .add({
-          'text': newMessage,
-          'senderId': FirebaseAuth.instance.currentUser!.uid,
-          'createdAt': FieldValue.serverTimestamp(),
+            'readBy': [FirebaseAuth.instance.currentUser!.uid],
+          });
 
-          'readBy': [FirebaseAuth.instance.currentUser!.uid],
-        });
+      final senderId = FirebaseAuth.instance.currentUser!.uid;
+      final sender = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(senderId)
+          .get();
+      await FirebaseFirestore.instance.collection('notifications').add({
+        'recipientId': widget.otherUserId,
+        'senderId': senderId,
+        'senderName': sender.data()?['name'] ?? 'A student',
+        'type': 'chat_message',
+        'chatId': widget.chatId,
+        'postId': '',
+        'postTitle': 'New message',
+        'message': newMessage,
+        'status': 'info',
+        'isRead': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
 
-    await FirebaseFirestore.instance
-        .collection('chats')
-        .doc(widget.chatId)
-        .update({
-          'lastMessage': newMessage,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
+      await FirebaseFirestore.instance
+          .collection('chats')
+          .doc(widget.chatId)
+          .update({
+            'lastMessage': newMessage,
+            'updatedAt': FieldValue.serverTimestamp(),
+            'unreadFor.${widget.otherUserId}': FieldValue.increment(1),
+          });
 
-    messageController.clear();
-
-    scrollToBottom();
+      messageController.clear();
+      scrollToBottom();
+    } finally {
+      if (mounted) setState(() => isSending = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surface = Theme.of(context).colorScheme.surface;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     return Scaffold(
-      backgroundColor: const Color(0xFFD8ECE6),
+      backgroundColor: isDark
+          ? const Color(0xFF111827)
+          : const Color(0xFFF4F7FB),
 
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 2,
+        backgroundColor: navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
 
         leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new,
-            color: Color(0xFF202547),
-            size: 24,
-          ),
+          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
           onPressed: () {
             Navigator.pop(context);
           },
         ),
         title: Row(
           children: [
-            const CircleAvatar(
-              radius: 22,
-              backgroundColor: Color(0xFFEAEAEA),
-              child: Icon(Icons.person, color: Color(0xFF202547)),
+            GestureDetector(
+              onTap: () =>
+                  showUserProfileDialog(context, userId: widget.otherUserId),
+              child: const CircleAvatar(
+                radius: 22,
+                backgroundColor: Colors.white,
+                child: Icon(Icons.person_rounded, color: navy),
+              ),
             ),
 
             const SizedBox(width: 12),
@@ -134,7 +190,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                 Text(
                   widget.userName,
                   style: TextStyle(
-                    color: Colors.black,
+                    color: Colors.white,
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
                   ),
@@ -159,7 +215,9 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                       isOnline ? 'Online' : 'Offline',
 
                       style: TextStyle(
-                        color: isOnline ? Colors.green : Colors.grey,
+                        color: isOnline
+                            ? const Color(0xFF75E6BA)
+                            : Colors.white70,
 
                         fontSize: 12,
                       ),
@@ -246,11 +304,14 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                           margin: const EdgeInsets.only(bottom: 12),
 
                           decoration: BoxDecoration(
-                            color: isMe
-                                ? const Color(0xFFF0F0F0)
-                                : Colors.white,
+                            color: isMe ? navy : surface,
 
-                            borderRadius: BorderRadius.circular(18),
+                            borderRadius: BorderRadius.only(
+                              topLeft: const Radius.circular(18),
+                              topRight: const Radius.circular(18),
+                              bottomLeft: Radius.circular(isMe ? 18 : 4),
+                              bottomRight: Radius.circular(isMe ? 4 : 18),
+                            ),
 
                             boxShadow: const [
                               BoxShadow(
@@ -267,7 +328,13 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                             mainAxisSize: MainAxisSize.min,
 
                             children: [
-                              Text(text, style: const TextStyle(fontSize: 15)),
+                              Text(
+                                text,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: isMe ? Colors.white : onSurface,
+                                ),
+                              ),
 
                               const SizedBox(height: 4),
 
@@ -295,8 +362,19 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
           ),
 
           Container(
-            color: Colors.white,
-            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.fromLTRB(12, 6, 12, 12),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: surface,
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: .08),
+                  blurRadius: 14,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
 
             child: Row(
               children: [
@@ -311,7 +389,9 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                     decoration: InputDecoration(
                       hintText: 'Type a message...',
                       filled: true,
-                      fillColor: const Color(0xFFF5F5F5),
+                      fillColor: isDark
+                          ? const Color(0xFF273449)
+                          : const Color(0xFFF5F5F5),
 
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 18,
@@ -338,29 +418,23 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
 
                 const SizedBox(width: 10),
 
-                SizedBox(
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      sendMessage();
-                    },
-
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF202547),
-                      foregroundColor: Colors.white,
-
-                      padding: const EdgeInsets.symmetric(horizontal: 22),
-
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                    ),
-
-                    child: const Text(
-                      'Send',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
+                IconButton.filled(
+                  onPressed: isSending ? null : sendMessage,
+                  style: IconButton.styleFrom(
+                    backgroundColor: green,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: green.withValues(alpha: .5),
                   ),
+                  icon: isSending
+                      ? const SizedBox(
+                          width: 19,
+                          height: 19,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.send_rounded),
                 ),
               ],
             ),

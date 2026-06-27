@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/widgets/bottom_sidebar.dart';
 import '../../../../core/widgets/blocking_loading_overlay.dart';
+import '../../../../core/widgets/skill_swap_page_header.dart';
 import '../../../posts/presentation/view_models/request_post_detail_view_model.dart';
 import '../../../posts/presentation/views/request_post_detail_page.dart';
+import '../../../chat/presentation/views/chat_detail_page.dart';
 import '../../models/app_notification.dart';
 import '../view_models/notification_view_model.dart';
 
@@ -17,6 +19,8 @@ class NotificationPage extends StatelessWidget {
   final NotificationViewModel viewModel;
   final RequestPostDetailViewModel Function(String postId)
   detailViewModelBuilder;
+  static const navy = Color(0xFF102A72);
+  static const green = Color(0xFF12A875);
 
   @override
   Widget build(BuildContext context) {
@@ -26,30 +30,16 @@ class NotificationPage extends StatelessWidget {
         loading: viewModel.busy,
         message: 'Updating invitation...',
         child: Scaffold(
-          backgroundColor: const Color(0xFFF7F8FC),
+          backgroundColor: Theme.of(context).brightness == Brightness.dark
+              ? const Color(0xFF0F172A)
+              : const Color(0xFFF4F7FB),
           bottomNavigationBar: const BottomSidebar(currentIndex: 3),
           body: SafeArea(
             child: Column(
               children: [
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(22, 24, 22, 14),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.notifications_rounded,
-                        size: 36,
-                        color: Color(0xFF1A1F5E),
-                      ),
-                      SizedBox(width: 12),
-                      Text(
-                        'Notifications',
-                        style: TextStyle(
-                          fontSize: 29,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
+                const SkillSwapPageHeader(
+                  title: 'Notifications',
+                  subtitle: 'Offers, matches, comments and account updates.',
                 ),
                 Expanded(
                   child: StreamBuilder<List<AppNotification>>(
@@ -89,12 +79,39 @@ class NotificationPage extends StatelessWidget {
   Widget _card(BuildContext context, AppNotification item) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      color: item.isRead ? Colors.white : const Color(0xFFEAF2FF),
+      elevation: 0,
+      color: item.isRead
+          ? Theme.of(context).colorScheme.surface
+          : const Color(0xFFEAF2FF),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: item.isRead
+              ? Theme.of(
+                  context,
+                ).colorScheme.outlineVariant.withValues(alpha: .6)
+              : navy.withValues(alpha: .18),
+        ),
+      ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(20),
         onTap: () async {
           await viewModel.markRead(item.id);
-          if (!context.mounted || item.postId.isEmpty) return;
+          if (!context.mounted) return;
+          if (item.type == 'chat_message' && item.chatId != null) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ChatDetailPage(
+                  userName: item.senderName,
+                  chatId: item.chatId!,
+                  otherUserId: item.senderId,
+                ),
+              ),
+            );
+            return;
+          }
+          if (item.postId.isEmpty) return;
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -132,7 +149,7 @@ class NotificationPage extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const Icon(Icons.chevron_right),
+                  const Icon(Icons.chevron_right_rounded, color: navy),
                 ],
               ),
               if (item.isInvitation && item.isPending) ...[
@@ -144,6 +161,13 @@ class NotificationPage extends StatelessWidget {
                         onPressed: viewModel.busy
                             ? null
                             : () => _respond(context, item, false),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.redAccent,
+                          side: const BorderSide(color: Colors.redAccent),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
                         child: const Text('Reject'),
                       ),
                     ),
@@ -155,6 +179,12 @@ class NotificationPage extends StatelessWidget {
                             : () => _respond(context, item, true),
                         icon: const Icon(Icons.check),
                         label: const Text('Accept'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: green,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -181,7 +211,38 @@ class NotificationPage extends StatelessWidget {
     AppNotification item,
     bool accepted,
   ) async {
-    final ok = await viewModel.respond(item, accepted);
+    String? rejectionMessage;
+    if (!accepted) {
+      final controller = TextEditingController();
+      rejectionMessage = await showDialog<String?>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Reject Invitation'),
+          content: TextField(
+            controller: controller,
+            maxLines: 3,
+            decoration: const InputDecoration(labelText: 'Message (optional)'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, controller.text),
+              child: const Text('Reject'),
+            ),
+          ],
+        ),
+      );
+      controller.dispose();
+      if (rejectionMessage == null) return;
+    }
+    final ok = await viewModel.respond(
+      item,
+      accepted,
+      rejectionMessage: rejectionMessage,
+    );
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -202,6 +263,14 @@ class NotificationPage extends StatelessWidget {
     'offer_accepted' || 'invitation_accepted' => Icons.check_circle,
     'invitation_rejected' => Icons.cancel,
     'rating_received' => Icons.star_rounded,
+    'chat_message' => Icons.chat_bubble_rounded,
+    'post_comment' => Icons.comment_rounded,
+    'post_status' => Icons.track_changes_rounded,
+    'post_banned' => Icons.block_rounded,
+    'post_unbanned' => Icons.restore_rounded,
+    'post_restored' => Icons.restore_from_trash_rounded,
+    'post_deleted' => Icons.delete_outline_rounded,
+    'offer_on_hold' => Icons.hourglass_top_rounded,
     _ => Icons.notifications,
   };
 

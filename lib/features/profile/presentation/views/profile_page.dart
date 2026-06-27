@@ -1,297 +1,435 @@
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 
+import '../../../../core/widgets/bottom_sidebar.dart';
+import '../../../../core/widgets/skill_swap_page_header.dart';
 import 'profile_edit_page.dart';
 import 'settings_page.dart';
-import '../../../../core/widgets/bottom_sidebar.dart';
+import 'user_profile_dialog.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
 
-  String readSkills(dynamic value) {
-    if (value is List) {
-      if (value.isEmpty) return 'No skills added';
-      return value.map((e) => e.toString()).join(', ');
-    }
-
-    if (value is String && value.trim().isNotEmpty) {
-      return value;
-    }
-
-    return 'No skills added';
-  }
+  static const navy = Color(0xFF102A72);
+  static const green = Color(0xFF12A875);
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-
     if (user == null) {
       return Scaffold(
         body: Center(
-          child: ElevatedButton(
-            onPressed: () {
-              Navigator.pushReplacementNamed(context, '/login');
-            },
-            child: const Text("Back to Login"),
+          child: FilledButton(
+            onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
+            child: const Text('Back to Login'),
           ),
         ),
       );
     }
-
-    final uid = user.uid;
-
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      body: StreamBuilder<DocumentSnapshot>(
+      backgroundColor: isDark
+          ? const Color(0xFF0F172A)
+          : const Color(0xFFF4F7FB),
+      bottomNavigationBar: const BottomSidebar(currentIndex: 4),
+      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
             .collection('users')
-            .doc(uid)
+            .doc(user.uid)
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return const Center(child: Text("Failed to load profile"));
+            return const Center(child: Text('Failed to load profile'));
           }
-
           if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: CircularProgressIndicator(color: green));
           }
-
-          if (!snapshot.data!.exists || snapshot.data!.data() == null) {
+          final data = snapshot.data?.data();
+          if (data == null) {
             return Center(
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pushReplacementNamed(context, '/create-profile');
-                },
-                child: const Text("Create Profile"),
+              child: FilledButton(
+                onPressed: () =>
+                    Navigator.pushReplacementNamed(context, '/create-profile'),
+                child: const Text('Create Profile'),
               ),
             );
           }
-
-          final data = snapshot.data!.data() as Map<String, dynamic>;
-
-          final photoUrl = data['photoUrl']?.toString() ?? '';
-          final name =
-              data['name']?.toString() ??
-              data['fullName']?.toString() ??
-              'No Name';
-
-          final course = data['course']?.toString() ?? 'No course';
-          final campus =
-              data['campus']?.toString() ??
-              data['school']?.toString() ??
-              'No campus';
-
-          final skillsText = readSkills(data['skills']);
-
+          final name = (data['name'] ?? data['fullName'] ?? 'Student')
+              .toString();
+          final campus = (data['campus'] ?? data['school'] ?? '')
+              .toString()
+              .trim();
+          final course = (data['course'] ?? 'Student').toString();
+          final photo = (data['photoUrl'] ?? data['profileImageUrl'] ?? '')
+              .toString();
+          final skills = data['skills'] is Iterable
+              ? (data['skills'] as Iterable)
+                    .map((item) => item.toString())
+                    .toList()
+              : <String>[];
+          final rating = (data['averageRating'] as num?)?.toDouble() ?? 0;
+          final points = (data['rewardPoints'] as num?)?.toInt() ?? 0;
+          final colors = Theme.of(context).colorScheme;
           return SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 15, 20, 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "My Profile",
-                    style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
-                  ),
-
-                  const SizedBox(height: 5),
-
-                  const Text(
-                    "Manage your skills",
-                    style: TextStyle(color: Colors.grey, fontSize: 16),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF1F1E8),
-                      borderRadius: BorderRadius.circular(25),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 10,
-                          offset: Offset(0, 5),
-                        ),
-                      ],
+            child: Column(
+              children: [
+                SkillSwapPageHeader(
+                  title: 'My Profile',
+                  subtitle: 'Your skills, reputation and campus activity.',
+                  trailing: IconButton.filledTonal(
+                    tooltip: 'Edit profile',
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ProfileEditPage(),
+                      ),
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 45,
-                                backgroundColor: const Color(0xFF6D718B),
-                                backgroundImage: photoUrl.isNotEmpty
-                                    ? NetworkImage(photoUrl)
-                                    : null,
-                                child: photoUrl.isEmpty
-                                    ? const Icon(
-                                        Icons.person,
-                                        size: 45,
-                                        color: Colors.white,
-                                      )
-                                    : null,
-                              ),
-
-                              const SizedBox(width: 15),
-
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      name,
-                                      style: const TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-
-                                    const SizedBox(height: 4),
-
-                                    Text(
-                                      campus,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-
-                                    Text(course),
-
-                                    const SizedBox(height: 5),
-
-                                    Text(
-                                      "Skills: $skillsText",
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
-                                ),
-                              ),
-
-                              Container(
-                                decoration: const BoxDecoration(
-                                  color: Colors.white,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: IconButton(
-                                  icon: const Icon(Icons.edit),
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => const ProfileEditPage(),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ],
+                    icon: const Icon(Icons.edit_rounded),
+                  ),
+                ),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: colors.surface,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color: colors.outlineVariant.withValues(alpha: .6),
                           ),
-
-                          const SizedBox(height: 15),
-
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              StreamBuilder<QuerySnapshot>(
-                                stream: FirebaseFirestore.instance
-                                    .collection('posts')
-                                    .where('userId', isEqualTo: uid)
-                                    .snapshots(),
-                                builder: (context, posts) => statBox(
-                                  '${posts.data?.docs.length ?? 0}',
-                                  "Posts",
-                                  Icons.article,
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 40,
+                                  backgroundColor: const Color(0xFFE8EEFF),
+                                  backgroundImage: photo.isEmpty
+                                      ? null
+                                      : NetworkImage(photo),
+                                  child: photo.isEmpty
+                                      ? const Icon(
+                                          Icons.person_rounded,
+                                          size: 42,
+                                          color: navy,
+                                        )
+                                      : null,
+                                ),
+                                const SizedBox(width: 15),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        name,
+                                        style: const TextStyle(
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        course,
+                                        style: TextStyle(
+                                          color: colors.onSurfaceVariant,
+                                        ),
+                                      ),
+                                      Text(
+                                        campus.isEmpty ? 'Campus: TBC' : campus,
+                                        style: TextStyle(
+                                          color: colors.onSurfaceVariant,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (skills.isNotEmpty) ...[
+                              const SizedBox(height: 16),
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: Wrap(
+                                  spacing: 7,
+                                  runSpacing: 7,
+                                  children: skills
+                                      .map(
+                                        (skill) => Chip(
+                                          label: Text(skill),
+                                          side: BorderSide.none,
+                                          backgroundColor: green.withValues(
+                                            alpha: .10,
+                                          ),
+                                          labelStyle: const TextStyle(
+                                            color: green,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
                                 ),
                               ),
-                              statBox(
-                                ((data['averageRating'] as num?)?.toDouble() ??
-                                        0)
-                                    .toStringAsFixed(1),
-                                "Rating",
-                                Icons.star,
-                              ),
-                              statBox(
-                                '${(data['rewardPoints'] as num?)?.toInt() ?? 0}',
-                                "Points",
-                                Icons.workspace_premium,
-                              ),
                             ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child:
+                                StreamBuilder<
+                                  QuerySnapshot<Map<String, dynamic>>
+                                >(
+                                  stream: FirebaseFirestore.instance
+                                      .collection('posts')
+                                      .where('userId', isEqualTo: user.uid)
+                                      .snapshots(),
+                                  builder: (context, posts) => _stat(
+                                    context,
+                                    '${posts.data?.docs.where((doc) => doc.data()['isDeleted'] != true).length ?? 0}',
+                                    'Posts',
+                                    Icons.article_rounded,
+                                    () => Navigator.pushNamed(
+                                      context,
+                                      '/my-posts',
+                                    ),
+                                  ),
+                                ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _stat(
+                              context,
+                              rating.toStringAsFixed(1),
+                              'Rating',
+                              Icons.star_rounded,
+                              () => showUserReviewsDialog(
+                                context,
+                                userId: user.uid,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _stat(
+                              context,
+                              '$points',
+                              'Points',
+                              Icons.workspace_premium_rounded,
+                              () =>
+                                  _showPointsBarcode(context, points, user.uid),
+                            ),
                           ),
                         ],
                       ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF1F1E8),
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: const [
-                        BoxShadow(color: Colors.black12, blurRadius: 5),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        ListTile(
-                          leading: const Icon(Icons.article_outlined),
-                          title: const Text("My Posts"),
-                          subtitle: const Text('View and manage your requests'),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () =>
-                              Navigator.pushNamed(context, '/my-posts'),
+                      const SizedBox(height: 18),
+                      const Text(
+                        'Account shortcuts',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
                         ),
-                        const Divider(height: 1),
-                        ListTile(
-                          leading: const Icon(Icons.settings),
-                          title: const Text("Settings"),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const SettingsPage(),
-                              ),
-                            );
-                          },
+                      ),
+                      const SizedBox(height: 9),
+                      _shortcut(
+                        context,
+                        Icons.handshake_rounded,
+                        'Helper Posts',
+                        'Requests where you are the confirmed helper',
+                        () => Navigator.pushNamed(context, '/helper-posts'),
+                      ),
+                      const SizedBox(height: 9),
+                      _shortcut(
+                        context,
+                        Icons.settings_rounded,
+                        'Settings',
+                        'Theme, account and sign-out options',
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const SettingsPage(),
+                          ),
                         ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 9),
+                      _shortcut(
+                        context,
+                        Icons.logout_rounded,
+                        'Logout',
+                        'Sign out from this device',
+                        () => _logout(context, user.uid),
+                        destructive: true,
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           );
         },
       ),
-      bottomNavigationBar: const BottomSidebar(currentIndex: 4),
     );
   }
 
-  Widget statBox(String value, String label, IconData icon) {
-    return Container(
-      width: 90,
-      height: 100,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: const Color(0xFF6D718B)),
-          const SizedBox(height: 5),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+  Widget _stat(
+    BuildContext context,
+    String value,
+    String label,
+    IconData icon,
+    VoidCallback onTap,
+  ) {
+    final colors = Theme.of(context).colorScheme;
+    return Material(
+      color: colors.surface,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          height: 105,
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: colors.outlineVariant.withValues(alpha: .6),
+            ),
           ),
-          Text(label),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: navy, size: 25),
+              const SizedBox(height: 6),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              Text(
+                label,
+                style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _shortcut(
+    BuildContext context,
+    IconData icon,
+    String title,
+    String subtitle,
+    VoidCallback onTap, {
+    bool destructive = false,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    return Material(
+      color: colors.surface,
+      borderRadius: BorderRadius.circular(18),
+      child: ListTile(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(color: colors.outlineVariant.withValues(alpha: .6)),
+        ),
+        leading: CircleAvatar(
+          backgroundColor: (destructive ? Colors.red : green).withValues(
+            alpha: .11,
+          ),
+          child: Icon(icon, color: destructive ? Colors.red : green),
+        ),
+        title: Text(
+          title,
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            color: destructive ? Colors.red : null,
+          ),
+        ),
+        subtitle: Text(subtitle),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: onTap,
+      ),
+    );
+  }
+
+  Future<void> _logout(BuildContext context, String userId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout?'),
+        content: const Text(
+          'Are you sure you want to sign out from Campus SkillSwap?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await FirebaseFirestore.instance.collection('users').doc(userId).update({
+      'isOnline': false,
+    });
+    await FirebaseAuth.instance.signOut();
+    if (!context.mounted) return;
+    Navigator.pushNamedAndRemoveUntil(context, '/login', (_) => false);
+  }
+
+  void _showPointsBarcode(BuildContext context, int points, String userId) {
+    final seed = userId.codeUnits.fold<int>(points + 1, (a, b) => a + b);
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reward Redemption'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Scan this barcode to view the available points.'),
+            const SizedBox(height: 18),
+            Container(
+              height: 110,
+              padding: const EdgeInsets.all(12),
+              color: Colors.white,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: List.generate(42, (index) {
+                  final width = ((seed + index * 7) % 3 + 1).toDouble();
+                  return Container(
+                    width: width,
+                    margin: EdgeInsets.only(right: index.isEven ? 2 : 1),
+                    color: index % 4 == 0 ? Colors.transparent : Colors.black,
+                  );
+                }),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              '$points points',
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
         ],
       ),
     );

@@ -11,6 +11,7 @@ class AppNotification {
     required this.status,
     required this.isRead,
     this.createdAt,
+    this.chatId,
   });
 
   final String id;
@@ -24,6 +25,7 @@ class AppNotification {
   final String status;
   final bool isRead;
   final DateTime? createdAt;
+  final String? chatId;
 
   bool get isInvitation => type == 'helper_invitation';
   bool get isPending => status == 'pending';

@@ -132,10 +132,10 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
           .collection('deleted_users_history')
           .doc(deletedDocId)
           .update({
-        'isRestored': true,
-        'restoredAt': FieldValue.serverTimestamp(),
-        'restoredByEmail': currentAdmin?.email ?? 'Unknown Admin',
-      });
+            'isRestored': true,
+            'restoredAt': FieldValue.serverTimestamp(),
+            'restoredByEmail': currentAdmin?.email ?? 'Unknown Admin',
+          });
 
       if (!mounted) return;
 
@@ -178,10 +178,7 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
         throw 'Missing original post ID. Cannot restore post.';
       }
 
-      final restoredData = <String, dynamic>{
-        ...originalPostData,
-        ...data,
-      };
+      final restoredData = <String, dynamic>{...originalPostData, ...data};
 
       restoredData.remove('originalData');
       restoredData.remove('deletedAt');
@@ -189,7 +186,11 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
       restoredData.remove('deletedByUid');
       restoredData.remove('isRestored');
 
-      restoredData['status'] = 'active';
+      restoredData['status'] = _text(
+        data['previousStatus'] ?? originalPostData['status'],
+        fallback: 'open',
+      );
+      restoredData['isDeleted'] = false;
       restoredData['isBanned'] = false;
       restoredData['banned'] = false;
       restoredData['restoredAt'] = FieldValue.serverTimestamp();
@@ -205,10 +206,28 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
           .collection('deleted_posts_history')
           .doc(deletedDocId)
           .update({
-        'isRestored': true,
-        'restoredAt': FieldValue.serverTimestamp(),
-        'restoredByEmail': currentAdmin?.email ?? 'Unknown Admin',
-      });
+            'isRestored': true,
+            'restoredAt': FieldValue.serverTimestamp(),
+            'restoredByEmail': currentAdmin?.email ?? 'Unknown Admin',
+          });
+
+      final restoredOwnerId = _text(
+        restoredData['userId'] ?? restoredData['ownerUid'],
+      );
+      if (restoredOwnerId.isNotEmpty) {
+        await FirebaseFirestore.instance.collection('notifications').add({
+          'recipientId': restoredOwnerId,
+          'senderId': currentAdmin?.uid ?? '',
+          'senderName': 'Campus SkillSwap Admin',
+          'type': 'post_restored',
+          'postId': postId,
+          'postTitle': restoredData['title'] ?? 'Skill request',
+          'message': 'Your deleted post was restored by an administrator.',
+          'status': 'accepted',
+          'isRead': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
 
       if (!mounted) return;
 
@@ -234,8 +253,12 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
     try {
       final currentAdmin = FirebaseAuth.instance.currentUser;
 
-      await FirebaseFirestore.instance.collection('posts').doc(postId).update({
-        'status': 'active',
+      final postRef = FirebaseFirestore.instance
+          .collection('posts')
+          .doc(postId);
+      final post = (await postRef.get()).data() ?? const <String, dynamic>{};
+      final previousStatus = _text(post['previousStatus'], fallback: 'open');
+      final updates = <String, dynamic>{
         'isBanned': false,
         'banned': false,
         'banReason': null,
@@ -245,7 +268,28 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
         'unbannedAt': FieldValue.serverTimestamp(),
         'unbannedByEmail': currentAdmin?.email ?? 'Unknown Admin',
         'updatedAt': FieldValue.serverTimestamp(),
-      });
+      };
+      if (post['status'] == 'banned') {
+        updates['status'] = previousStatus;
+      }
+      await postRef.update(updates);
+
+      final ownerId = _text(post['userId'] ?? post['ownerUid']);
+      if (ownerId.isNotEmpty) {
+        await FirebaseFirestore.instance.collection('notifications').add({
+          'recipientId': ownerId,
+          'senderId': currentAdmin?.uid ?? '',
+          'senderName': 'Campus SkillSwap Admin',
+          'type': 'post_unbanned',
+          'postId': postId,
+          'postTitle': post['title'] ?? 'Skill request',
+          'message':
+              'Your post was unbanned. Its post status remains unchanged.',
+          'status': 'accepted',
+          'isRead': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
 
       if (!mounted) return;
 
@@ -457,10 +501,7 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
               color: textColor,
             ),
           ),
-          Text(
-            subtitle,
-            style: TextStyle(fontSize: 12, color: subTextColor),
-          ),
+          Text(subtitle, style: TextStyle(fontSize: 12, color: subTextColor)),
           const SizedBox(height: 16),
           Divider(color: lineColor),
           child,
@@ -484,18 +525,15 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
         prefixIcon: Icon(Icons.search, size: 20, color: subTextColor),
         suffixIcon: _searchCtrl.text.isNotEmpty
             ? IconButton(
-          icon: Icon(Icons.clear, size: 18, color: subTextColor),
-          onPressed: () {
-            _searchCtrl.clear();
-          },
-        )
+                icon: Icon(Icons.clear, size: 18, color: subTextColor),
+                onPressed: () {
+                  _searchCtrl.clear();
+                },
+              )
             : null,
         filled: true,
         fillColor: fieldColor,
-        contentPadding: const EdgeInsets.symmetric(
-          vertical: 0,
-          horizontal: 12,
-        ),
+        contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: lineColor),
@@ -516,10 +554,10 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
   }
 
   Widget _deletedUserCard(
-      String deletedDocId,
-      Map<String, dynamic> data, {
-        required bool isDark,
-      }) {
+    String deletedDocId,
+    Map<String, dynamic> data, {
+    required bool isDark,
+  }) {
     final name = _text(data['deletedUserName'], fallback: 'No Name');
     final email = _text(data['deletedUserEmail'], fallback: 'No Email');
     final campus = _text(data['deletedUserCampus'], fallback: 'No campus');
@@ -575,12 +613,18 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
                   style: TextStyle(color: subTextColor, fontSize: 12),
                 ),
                 const SizedBox(height: 8),
-                Text('Campus: $campus',
-                    style: TextStyle(fontSize: 12, color: textColor)),
-                Text('Course: $course',
-                    style: TextStyle(fontSize: 12, color: textColor)),
-                Text('Skills: $skills',
-                    style: TextStyle(fontSize: 12, color: textColor)),
+                Text(
+                  'Campus: $campus',
+                  style: TextStyle(fontSize: 12, color: textColor),
+                ),
+                Text(
+                  'Course: $course',
+                  style: TextStyle(fontSize: 12, color: textColor),
+                ),
+                Text(
+                  'Skills: $skills',
+                  style: TextStyle(fontSize: 12, color: textColor),
+                ),
                 const SizedBox(height: 8),
                 Text(
                   'Deleted by: $deletedBy',
@@ -650,10 +694,10 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
   }
 
   Widget _deletedPostCard(
-      String deletedDocId,
-      Map<String, dynamic> data, {
-        required bool isDark,
-      }) {
+    String deletedDocId,
+    Map<String, dynamic> data, {
+    required bool isDark,
+  }) {
     final originalPostData = _originalData(data);
 
     final title = _text(
@@ -758,14 +802,22 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
                   style: TextStyle(color: subTextColor, fontSize: 12),
                 ),
                 const SizedBox(height: 8),
-                Text('Posted by: $postedBy',
-                    style: TextStyle(fontSize: 12, color: textColor)),
-                Text('Campus: $campus',
-                    style: TextStyle(fontSize: 12, color: textColor)),
-                Text('Course: $course',
-                    style: TextStyle(fontSize: 12, color: textColor)),
-                Text('Skills: $skills',
-                    style: TextStyle(fontSize: 12, color: textColor)),
+                Text(
+                  'Posted by: $postedBy',
+                  style: TextStyle(fontSize: 12, color: textColor),
+                ),
+                Text(
+                  'Campus: $campus',
+                  style: TextStyle(fontSize: 12, color: textColor),
+                ),
+                Text(
+                  'Course: $course',
+                  style: TextStyle(fontSize: 12, color: textColor),
+                ),
+                Text(
+                  'Skills: $skills',
+                  style: TextStyle(fontSize: 12, color: textColor),
+                ),
                 const SizedBox(height: 8),
                 Text(
                   'Deleted by: $deletedBy',
@@ -835,15 +887,20 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
   }
 
   Widget _bannedPostCard(
-      String postId,
-      Map<String, dynamic> data, {
-        required bool isDark,
-      }) {
+    String postId,
+    Map<String, dynamic> data, {
+    required bool isDark,
+  }) {
     final title = _text(data['title'], fallback: 'No title');
     final description = _text(data['description'], fallback: 'No description');
-    final postedBy =
-    _text(data['postedBy'] ?? data['userEmail'], fallback: 'Unknown user');
-    final campus = _text(data['campus'] ?? data['school'], fallback: 'No campus');
+    final postedBy = _text(
+      data['postedBy'] ?? data['userEmail'],
+      fallback: 'Unknown user',
+    );
+    final campus = _text(
+      data['campus'] ?? data['school'],
+      fallback: 'No campus',
+    );
     final course = _text(data['course'], fallback: 'No course');
     final skills = _skillsText(data['skills'] ?? data['skillNeeded']);
     final bannedBy = _text(data['bannedByEmail'], fallback: 'Unknown Admin');
@@ -868,11 +925,7 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
           CircleAvatar(
             radius: 22,
             backgroundColor: orange,
-            child: const Icon(
-              Icons.block,
-              color: Colors.white,
-              size: 22,
-            ),
+            child: const Icon(Icons.block, color: Colors.white, size: 22),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -895,14 +948,22 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
                   style: TextStyle(color: subTextColor, fontSize: 12),
                 ),
                 const SizedBox(height: 8),
-                Text('Posted by: $postedBy',
-                    style: TextStyle(fontSize: 12, color: textColor)),
-                Text('Campus: $campus',
-                    style: TextStyle(fontSize: 12, color: textColor)),
-                Text('Course: $course',
-                    style: TextStyle(fontSize: 12, color: textColor)),
-                Text('Skills: $skills',
-                    style: TextStyle(fontSize: 12, color: textColor)),
+                Text(
+                  'Posted by: $postedBy',
+                  style: TextStyle(fontSize: 12, color: textColor),
+                ),
+                Text(
+                  'Campus: $campus',
+                  style: TextStyle(fontSize: 12, color: textColor),
+                ),
+                Text(
+                  'Course: $course',
+                  style: TextStyle(fontSize: 12, color: textColor),
+                ),
+                Text(
+                  'Skills: $skills',
+                  style: TextStyle(fontSize: 12, color: textColor),
+                ),
                 const SizedBox(height: 8),
                 Text(
                   'Banned by: $bannedBy',
@@ -1098,10 +1159,7 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
       title: 'Banned Posts List',
       subtitle: 'Posts banned by admin or superadmin',
       child: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('posts')
-            .where('status', isEqualTo: 'banned')
-            .snapshots(),
+        stream: FirebaseFirestore.instance.collection('posts').snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Padding(
@@ -1126,7 +1184,11 @@ class _AdminAuditTrackPageState extends State<AdminAuditTrackPage> {
 
           final filteredDocs = docs.where((doc) {
             final data = doc.data() as Map<String, dynamic>;
-            return _matchesBannedPostSearch(data);
+            final banned =
+                data['isBanned'] == true ||
+                data['banned'] == true ||
+                data['status'] == 'banned';
+            return banned && _matchesBannedPostSearch(data);
           }).toList();
 
           filteredDocs.sort((a, b) {

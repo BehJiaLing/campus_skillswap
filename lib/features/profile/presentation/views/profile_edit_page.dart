@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../../core/widgets/skill_swap_page_header.dart';
 
 class ProfileEditPage extends StatefulWidget {
   const ProfileEditPage({super.key});
@@ -213,7 +214,9 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     return InputDecoration(
       hintText: hintText,
       filled: true,
-      fillColor: Colors.white,
+      fillColor: Theme.of(context).brightness == Brightness.dark
+          ? const Color(0xFF273449)
+          : const Color(0xFFF7F9FC),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(15),
@@ -225,7 +228,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(15),
-        borderSide: const BorderSide(color: Color(0xFF6D718B), width: 1.5),
+        borderSide: const BorderSide(color: Color(0xFF12A875), width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(15),
@@ -250,7 +253,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
 
   Widget campusDropdown() {
     return DropdownButtonFormField<String>(
-      value: _selectedCampus,
+      initialValue: _selectedCampus,
       isExpanded: true,
       decoration: inputDecoration(hintText: 'Select your campus / branch'),
       items: campusOptions.map((campus) {
@@ -276,7 +279,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
 
   Widget courseDropdown() {
     return DropdownButtonFormField<String>(
-      value: _selectedCourse,
+      initialValue: _selectedCourse,
       isExpanded: true,
       decoration: inputDecoration(hintText: 'Select your course'),
       items: courseOptions.map((course) {
@@ -321,150 +324,170 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       );
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F8F8),
-
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        foregroundColor: Colors.black,
-        title: const Text(
-          'Edit Profile',
-          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
-        ),
-      ),
-
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF1F1E8),
-            borderRadius: BorderRadius.circular(25),
-            boxShadow: const [
-              BoxShadow(
-                color: Colors.black12,
-                blurRadius: 10,
-                offset: Offset(0, 5),
+      backgroundColor: isDark
+          ? const Color(0xFF0F172A)
+          : const Color(0xFFF4F7FB),
+      body: SafeArea(
+        child: Column(
+          children: [
+            SkillSwapPageHeader(
+              title: 'Edit Profile',
+              subtitle: 'Keep your campus identity and skills up to date.',
+              trailing: IconButton.filledTonal(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.close_rounded),
               ),
-            ],
-          ),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              children: [
-                const Text(
-                  "Edit Your Profile",
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                ),
-
-                const SizedBox(height: 35),
-
-                label("Name"),
-                const SizedBox(height: 8),
-
-                TextFormField(
-                  controller: _nameController,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Name cannot be empty';
-                    }
-
-                    if (value.trim().length < 3) {
-                      return 'Name must be at least 3 characters';
-                    }
-
-                    return null;
-                  },
-                  decoration: inputDecoration(hintText: 'Your full name'),
-                ),
-
-                const SizedBox(height: 25),
-
-                label("Campus / Branch"),
-                const SizedBox(height: 8),
-
-                campusDropdown(),
-
-                const SizedBox(height: 25),
-
-                label("Course"),
-                const SizedBox(height: 8),
-
-                courseDropdown(),
-
-                if (_selectedCourse == 'Other') ...[
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _customCourseController,
-                    validator: (value) {
-                      if (_selectedCourse == 'Other' &&
-                          (value == null || value.trim().isEmpty)) {
-                        return 'Please enter your course';
-                      }
-
-                      return null;
-                    },
-                    decoration: inputDecoration(hintText: 'Enter your course'),
-                  ),
-                ],
-
-                const SizedBox(height: 25),
-
-                label("Skills (Separate by comma)"),
-                const SizedBox(height: 8),
-
-                TextFormField(
-                  controller: _skillsController,
-                  maxLines: 3,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter at least one skill';
-                    }
-
-                    return null;
-                  },
-                  decoration: inputDecoration(
-                    hintText: 'e.g. Python, Canva, Excel',
-                  ),
-                ),
-
-                const SizedBox(height: 25),
-
-                SizedBox(
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
+                child: Container(
                   width: double.infinity,
-                  height: 55,
-                  child: ElevatedButton(
-                    onPressed: isSaving ? null : saveProfile,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF6D718B),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15),
-                      ),
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.outlineVariant.withValues(alpha: .6),
                     ),
-                    child: isSaving
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2.5,
+                  ),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.badge_rounded, color: Color(0xFF102A72)),
+                            SizedBox(width: 8),
+                            Text(
+                              'Profile details',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
-                          )
-                        : const Text(
-                            "Save Changes",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                          ],
+                        ),
+
+                        const SizedBox(height: 26),
+
+                        label("Name"),
+                        const SizedBox(height: 8),
+
+                        TextFormField(
+                          controller: _nameController,
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Name cannot be empty';
+                            }
+
+                            if (value.trim().length < 3) {
+                              return 'Name must be at least 3 characters';
+                            }
+
+                            return null;
+                          },
+                          decoration: inputDecoration(
+                            hintText: 'Your full name',
+                          ),
+                        ),
+
+                        const SizedBox(height: 25),
+
+                        label("Campus / Branch"),
+                        const SizedBox(height: 8),
+
+                        campusDropdown(),
+
+                        const SizedBox(height: 25),
+
+                        label("Course"),
+                        const SizedBox(height: 8),
+
+                        courseDropdown(),
+
+                        if (_selectedCourse == 'Other') ...[
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _customCourseController,
+                            validator: (value) {
+                              if (_selectedCourse == 'Other' &&
+                                  (value == null || value.trim().isEmpty)) {
+                                return 'Please enter your course';
+                              }
+
+                              return null;
+                            },
+                            decoration: inputDecoration(
+                              hintText: 'Enter your course',
                             ),
                           ),
+                        ],
+
+                        const SizedBox(height: 25),
+
+                        label("Skills (Separate by comma)"),
+                        const SizedBox(height: 8),
+
+                        TextFormField(
+                          controller: _skillsController,
+                          maxLines: 3,
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Please enter at least one skill';
+                            }
+
+                            return null;
+                          },
+                          decoration: inputDecoration(
+                            hintText: 'e.g. Python, Canva, Excel',
+                          ),
+                        ),
+
+                        const SizedBox(height: 25),
+
+                        SizedBox(
+                          width: double.infinity,
+                          height: 55,
+                          child: FilledButton.icon(
+                            onPressed: isSaving ? null : saveProfile,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFF102A72),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(15),
+                              ),
+                            ),
+                            icon: isSaving
+                                ? const SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2.5,
+                                    ),
+                                  )
+                                : const Icon(Icons.save_rounded),
+                            label: Text(
+                              isSaving ? 'Saving...' : 'Save Changes',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );

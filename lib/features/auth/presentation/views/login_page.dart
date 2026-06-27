@@ -243,14 +243,14 @@ class _LoginPageState extends State<LoginPage> {
             children: [
               const SizedBox(height: 60),
 
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  color: navy,
-                  borderRadius: BorderRadius.circular(16),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(18),
+                child: Image.asset(
+                  'assets/skillswap_logo.png',
+                  width: 100,
+                  height: 100,
+                  fit: BoxFit.cover,
                 ),
-                child: const Icon(Icons.school, color: Colors.white, size: 36),
               ),
 
               const SizedBox(height: 24),

@@ -9,6 +9,7 @@ import 'core/theme/app_theme.dart';
 import 'app/app_dependencies.dart';
 import 'features/posts/presentation/view_models/create_post_view_model.dart';
 import 'features/posts/presentation/view_models/my_requests_view_model.dart';
+import 'features/posts/presentation/view_models/helper_posts_view_model.dart';
 import 'features/posts/presentation/view_models/post_feed_view_model.dart';
 import 'features/posts/presentation/view_models/request_post_detail_view_model.dart';
 import 'features/auth/presentation/view_models/startup_view_model.dart';
@@ -22,6 +23,7 @@ import 'features/auth/presentation/views/verify_email_page.dart';
 import 'features/posts/presentation/views/post_page.dart';
 import 'features/posts/presentation/views/create_post_page.dart';
 import 'features/posts/presentation/views/request_post_page.dart';
+import 'features/posts/presentation/views/request_post_detail_page.dart';
 import 'features/notifications/presentation/view_models/notification_view_model.dart';
 import 'features/notifications/presentation/views/notification_page.dart';
 
@@ -102,7 +104,14 @@ class _AppBootstrapState extends State<AppBootstrap> {
         body: SafeArea(
           child: Center(
             child: _startupError == null
-                ? const CircularProgressIndicator()
+                ? Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Image.asset('assets/skillswap_logo.png', width: 210),
+                      const SizedBox(height: 20),
+                      const CircularProgressIndicator(),
+                    ],
+                  )
                 : Padding(
                     padding: const EdgeInsets.all(24),
                     child: Column(
@@ -171,6 +180,18 @@ class MyApp extends StatelessWidget {
               seedColor: const Color(0xFF1A1F5E),
               brightness: Brightness.dark,
             ),
+            cardTheme: const CardThemeData(color: Color(0xFF1F2937)),
+            dialogTheme: const DialogThemeData(
+              backgroundColor: Color(0xFF1F2937),
+            ),
+            inputDecorationTheme: InputDecorationTheme(
+              filled: true,
+              fillColor: const Color(0xFF273449),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide.none,
+              ),
+            ),
           ),
           home: AuthGate(
             viewModel: StartupViewModel(
@@ -179,15 +200,11 @@ class MyApp extends StatelessWidget {
             ),
           ),
           routes: {
-            '/login': (context) => const LightThemeWrapper(child: LoginPage()),
-            '/signup': (context) =>
-                const LightThemeWrapper(child: SignUpPage()),
-            '/verify-email': (context) =>
-                const LightThemeWrapper(child: VerifyEmailPage()),
-            '/create-profile': (context) =>
-                const LightThemeWrapper(child: CreateProfilePage()),
-            '/forgot-password': (context) =>
-                const LightThemeWrapper(child: ForgotPasswordPage()),
+            '/login': (context) => const LoginPage(),
+            '/signup': (context) => const SignUpPage(),
+            '/verify-email': (context) => const VerifyEmailPage(),
+            '/create-profile': (context) => const CreateProfilePage(),
+            '/forgot-password': (context) => const ForgotPasswordPage(),
 
             '/post': (context) => PostPage(
               viewModel: PostFeedViewModel(dependencies.postRepository),
@@ -232,6 +249,19 @@ class MyApp extends StatelessWidget {
                 postId,
               ),
             ),
+            '/helper-posts': (context) => MyPostsPage.helper(
+              viewModel: HelperPostsViewModel(
+                dependencies.postRepository,
+                dependencies.authRepository,
+              ),
+              detailViewModelBuilder: (postId) => RequestPostDetailViewModel(
+                dependencies.postRepository,
+                dependencies.authRepository,
+                dependencies.userProfileRepository,
+                dependencies.groqMatchingService,
+                postId,
+              ),
+            ),
             '/chat': (context) => const ChatListPage(),
             '/profile': (context) => const ProfilePage(),
 
@@ -242,6 +272,25 @@ class MyApp extends StatelessWidget {
                 const AdminPostManagementPage(),
             '/admin/settings': (context) => const AdminSettingsPage(),
             '/admin/user-access': (context) => const AdminUserAccessPage(),
+          },
+          onGenerateRoute: (settings) {
+            if (settings.name == '/post-detail' &&
+                settings.arguments is String) {
+              final postId = settings.arguments! as String;
+              return MaterialPageRoute(
+                settings: settings,
+                builder: (_) => RequestPostDetailPage(
+                  viewModel: RequestPostDetailViewModel(
+                    dependencies.postRepository,
+                    dependencies.authRepository,
+                    dependencies.userProfileRepository,
+                    dependencies.groqMatchingService,
+                    postId,
+                  ),
+                ),
+              );
+            }
+            return null;
           },
         );
       },
@@ -297,12 +346,21 @@ class _AuthGateState extends State<AuthGate> {
       future: _startRoute,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return const LightThemeWrapper(child: LoginPage());
+          return const LoginPage();
         }
 
         if (!snapshot.hasData) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+          return Scaffold(
+            body: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Image.asset('assets/skillswap_logo.png', width: 210),
+                  const SizedBox(height: 20),
+                  const CircularProgressIndicator(),
+                ],
+              ),
+            ),
           );
         }
 
@@ -314,7 +372,18 @@ class _AuthGateState extends State<AuthGate> {
           });
         }
 
-        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        return Scaffold(
+          body: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Image.asset('assets/skillswap_logo.png', width: 210),
+                const SizedBox(height: 20),
+                const CircularProgressIndicator(),
+              ],
+            ),
+          ),
+        );
       },
     );
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/widgets/bottom_sidebar.dart';
+import '../../../../core/widgets/skill_swap_page_header.dart';
 import '../../models/request_post.dart';
 import '../view_models/post_feed_view_model.dart';
 import '../view_models/request_post_detail_view_model.dart';
@@ -13,196 +14,91 @@ class PostPage extends StatelessWidget {
     required this.detailViewModelBuilder,
   });
 
+  static const navy = Color(0xFF102A72);
+  static const green = Color(0xFF12A875);
+
   final PostFeedViewModel viewModel;
   final RequestPostDetailViewModel Function(String postId)
   detailViewModelBuilder;
 
-  final Color bg = const Color(0xFFFFFFFF);
-  final Color cardBlue = const Color(0xFFC8D4F0);
-  final Color darkText = const Color(0xFF1F223D);
-  final Color green = const Color(0xFFB8F2B8);
-  final Color peach = const Color(0xFFEFCFAB);
-
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: isDark
+          ? const Color(0xFF0F172A)
+          : const Color(0xFFF4F7FB),
       bottomNavigationBar: const BottomSidebar(currentIndex: 0),
       body: SafeArea(
         child: Column(
           children: [
+            const SkillSwapPageHeader(
+              title: 'Discover Requests',
+              subtitle: 'Find an open request and share what you know.',
+            ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 10),
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
               child: Row(
                 children: [
-                  CircleAvatar(
-                    radius: 38,
-                    backgroundColor: cardBlue,
-                    child: Icon(Icons.school, size: 42, color: darkText),
+                  const Expanded(
+                    child: Text(
+                      'Open skill requests',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                   ),
-                  const SizedBox(width: 18),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Welcome back.",
-                        style: TextStyle(
-                          fontSize: 30,
-                          fontWeight: FontWeight.bold,
-                          color: darkText,
-                        ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 11,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: green.withValues(alpha: .12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'LIVE',
+                      style: TextStyle(
+                        color: green,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
                       ),
-                      Text(
-                        "How can we help you?",
-                        style: TextStyle(fontSize: 20, color: darkText),
-                      ),
-                    ],
+                    ),
                   ),
                 ],
               ),
             ),
-
             Expanded(
               child: StreamBuilder<List<RequestPost>>(
                 stream: viewModel.posts,
                 builder: (context, snapshot) {
                   if (snapshot.hasError) {
-                    return const Center(child: Text("Failed to load posts"));
-                  }
-
-                  if (!snapshot.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  final posts = snapshot.data!;
-
-                  if (posts.isEmpty) {
-                    return const Center(
-                      child: Text(
-                        "No request posts yet",
-                        style: TextStyle(fontSize: 18),
-                      ),
+                    return const _EmptyFeed(
+                      icon: Icons.cloud_off_rounded,
+                      title: 'Unable to load requests',
+                      message: 'Please try again shortly.',
                     );
                   }
-
+                  if (!snapshot.hasData) {
+                    return const Center(
+                      child: CircularProgressIndicator(color: green),
+                    );
+                  }
+                  final posts = snapshot.data!;
+                  if (posts.isEmpty) {
+                    return const _EmptyFeed(
+                      icon: Icons.inbox_outlined,
+                      title: 'No open requests',
+                      message: 'New skill requests will appear here.',
+                    );
+                  }
                   return ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(24, 10, 24, 20),
+                    padding: const EdgeInsets.fromLTRB(18, 6, 18, 24),
                     itemCount: posts.length,
-                    itemBuilder: (context, index) {
-                      final post = posts[index];
-
-                      return GestureDetector(
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => RequestPostDetailPage(
-                              viewModel: detailViewModelBuilder(post.id),
-                            ),
-                          ),
-                        ),
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 18),
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: cardBlue,
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.25),
-                                blurRadius: 6,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      post.userName,
-                                      style: TextStyle(
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.bold,
-                                        color: darkText,
-                                      ),
-                                    ),
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 24,
-                                      vertical: 6,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color:
-                                          post.status == RequestPostStatus.open
-                                          ? green
-                                          : peach,
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: Text(
-                                      post.status.label,
-                                      style: TextStyle(
-                                        fontSize: 17,
-                                        fontWeight: FontWeight.w600,
-                                        color: darkText,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-
-                              const SizedBox(height: 4),
-
-                              Text(
-                                post.course,
-                                style: TextStyle(fontSize: 16, color: darkText),
-                              ),
-
-                              const SizedBox(height: 14),
-
-                              Text(
-                                post.title,
-                                style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w600,
-                                  color: darkText,
-                                ),
-                              ),
-
-                              const SizedBox(height: 14),
-
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(18),
-                                constraints: const BoxConstraints(
-                                  minHeight: 110,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(18),
-                                ),
-                                child: Text(
-                                  post.description,
-                                  style: TextStyle(
-                                    fontSize: 17,
-                                    color: darkText,
-                                  ),
-                                ),
-                              ),
-
-                              const SizedBox(height: 16),
-
-                              Text(
-                                "Publish Date: ${formatDate(post.createdAt)}",
-                                style: TextStyle(fontSize: 16, color: darkText),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
+                    itemBuilder: (context, index) =>
+                        _postCard(context, posts[index]),
                   );
                 },
               ),
@@ -213,8 +109,187 @@ class PostPage extends StatelessWidget {
     );
   }
 
-  String formatDate(DateTime? date) {
-    if (date == null) return "-";
-    return "${date.day}/${date.month}/${date.year}";
+  Widget _postCard(BuildContext context, RequestPost post) {
+    final colors = Theme.of(context).colorScheme;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 14),
+      color: colors.surface,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(22),
+        side: BorderSide(color: colors.outlineVariant.withValues(alpha: .6)),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => RequestPostDetailPage(
+              viewModel: detailViewModelBuilder(post.id),
+            ),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(17),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const CircleAvatar(
+                    radius: 23,
+                    backgroundColor: Color(0xFFE8EEFF),
+                    child: Icon(Icons.person_rounded, color: navy),
+                  ),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          post.userName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                          ),
+                        ),
+                        Text(
+                          post.course,
+                          style: TextStyle(
+                            color: colors.onSurfaceVariant,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 11,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: green.withValues(alpha: .12),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: const Text(
+                      'OPEN',
+                      style: TextStyle(
+                        color: green,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                post.title,
+                style: const TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 9),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: navy.withValues(alpha: .08),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  post.skillNeeded,
+                  style: const TextStyle(
+                    color: navy,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 11),
+              Text(
+                post.description,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: colors.onSurfaceVariant, height: 1.45),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Icon(
+                    Icons.calendar_today_outlined,
+                    size: 15,
+                    color: colors.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _formatDate(post.createdAt),
+                    style: TextStyle(
+                      color: colors.onSurfaceVariant,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const Spacer(),
+                  const Text(
+                    'View request',
+                    style: TextStyle(color: navy, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(width: 3),
+                  const Icon(
+                    Icons.arrow_forward_rounded,
+                    size: 18,
+                    color: navy,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
+
+  String _formatDate(DateTime? date) =>
+      date == null ? '-' : '${date.day}/${date.month}/${date.year}';
+}
+
+class _EmptyFeed extends StatelessWidget {
+  const _EmptyFeed({
+    required this.icon,
+    required this.title,
+    required this.message,
+  });
+  final IconData icon;
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(30),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 52, color: const Color(0xFF12A875)),
+          const SizedBox(height: 13),
+          Text(
+            title,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }

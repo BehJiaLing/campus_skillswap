@@ -7,8 +7,8 @@ class BottomSidebar extends StatelessWidget {
 
   const BottomSidebar({super.key, required this.currentIndex});
 
-  static const Color navColor = Color(0xFFD7E3E4);
-  static const Color activeColor = Color(0xFF6D718B);
+  static const Color navy = Color(0xFF102A72);
+  static const Color green = Color(0xFF12A875);
 
   void _goToPage(BuildContext context, int index) {
     if (index == currentIndex) return;
@@ -34,24 +34,33 @@ class BottomSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 82,
-      decoration: const BoxDecoration(
-        color: navColor,
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(24),
-          topRight: Radius.circular(24),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _navIcon(context, Icons.home_rounded, 0),
-          _navIcon(context, Icons.chat_bubble_rounded, 1),
-          _navIcon(context, Icons.add_box_rounded, 2),
-          _notificationIcon(context),
-          _navIcon(context, Icons.person_rounded, 4),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF172033) : Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: .10),
+            blurRadius: 20,
+            offset: const Offset(0, -5),
+          ),
         ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 70,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _navIcon(context, Icons.home_rounded, 'Posts', 0),
+              _chatIcon(context),
+              _navIcon(context, Icons.add_rounded, 'Create', 2),
+              _notificationIcon(context),
+              _navIcon(context, Icons.person_rounded, 'Profile', 4),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -59,7 +68,7 @@ class BottomSidebar extends StatelessWidget {
   Widget _notificationIcon(BuildContext context) {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId == null) {
-      return _navIcon(context, Icons.notifications_rounded, 3);
+      return _navIcon(context, Icons.notifications_rounded, 'Alerts', 3);
     }
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
@@ -75,7 +84,7 @@ class BottomSidebar extends StatelessWidget {
         return Stack(
           clipBehavior: Clip.none,
           children: [
-            _navIcon(context, Icons.notifications_rounded, 3),
+            _navIcon(context, Icons.notifications_rounded, 'Alerts', 3),
             if (unread)
               const Positioned(
                 right: 3,
@@ -88,22 +97,95 @@ class BottomSidebar extends StatelessWidget {
     );
   }
 
-  Widget _navIcon(BuildContext context, IconData icon, int index) {
+  Widget _chatIcon(BuildContext context) {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) {
+      return _navIcon(context, Icons.chat_bubble_rounded, 'Chats', 1);
+    }
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('chats')
+          .where('userIDs', arrayContains: userId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        final unreadCounter =
+            snapshot.data?.docs.any((document) {
+              final map = document.data()['unreadFor'];
+              return map is Map && ((map[userId] as num?)?.toInt() ?? 0) > 0;
+            }) ==
+            true;
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection('notifications')
+              .where('recipientId', isEqualTo: userId)
+              .snapshots(),
+          builder: (context, notificationSnapshot) {
+            final unreadMessage =
+                notificationSnapshot.data?.docs.any((document) {
+                  final data = document.data();
+                  return data['type'] == 'chat_message' &&
+                      data['isRead'] != true;
+                }) ==
+                true;
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                _navIcon(context, Icons.chat_bubble_rounded, 'Chats', 1),
+                if (unreadCounter || unreadMessage)
+                  const Positioned(
+                    right: 3,
+                    top: 2,
+                    child: CircleAvatar(radius: 6, backgroundColor: Colors.red),
+                  ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _navIcon(
+    BuildContext context,
+    IconData icon,
+    String label,
+    int index,
+  ) {
     final bool isActive = currentIndex == index;
 
     return GestureDetector(
       onTap: () => _goToPage(context, index),
-      child: Container(
-        width: 52,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        width: 66,
         height: 52,
+        padding: const EdgeInsets.symmetric(vertical: 5),
         decoration: BoxDecoration(
-          color: isActive ? activeColor : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
+          color: isActive ? green.withValues(alpha: .13) : Colors.transparent,
+          borderRadius: BorderRadius.circular(18),
         ),
-        child: Icon(
-          icon,
-          size: 30,
-          color: isActive ? Colors.white : Colors.black87,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 24,
+              color: isActive
+                  ? green
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                color: isActive
+                    ? green
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
         ),
       ),
     );

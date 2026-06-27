@@ -1,92 +1,114 @@
-import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+
+import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/skill_swap_page_header.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
+  static const navy = Color(0xFF102A72);
+  static const green = Color(0xFF12A875);
 
-  Future<void> changePassword(BuildContext context) async {
+  Future<void> _changePassword(BuildContext context) async {
     final email = FirebaseAuth.instance.currentUser?.email;
-
     if (email == null) return;
-
     await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
-
+    if (!context.mounted) return;
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text("Password reset email sent")));
-  }
-
-  Future<void> logout(BuildContext context) async {
-    final uid = FirebaseAuth.instance.currentUser!.uid;
-
-    await FirebaseFirestore.instance.collection('users').doc(uid).update({
-      'isOnline': false,
-    });
-
-    await FirebaseAuth.instance.signOut();
-
-    Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+    ).showSnackBar(const SnackBar(content: Text('Password reset email sent.')));
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F8F8),
-
-      appBar: AppBar(title: const Text("Settings")),
-
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-
+      backgroundColor: isDark
+          ? const Color(0xFF0F172A)
+          : const Color(0xFFF4F7FB),
+      body: SafeArea(
         child: Column(
           children: [
-            Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFFF1F1E8),
-
-                borderRadius: BorderRadius.circular(20),
+            SkillSwapPageHeader(
+              title: 'Settings',
+              subtitle: 'Personalize security and appearance.',
+              trailing: IconButton.filledTonal(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.arrow_back_rounded),
               ),
-
-              child: Column(
+            ),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(18, 10, 18, 28),
                 children: [
-                  ListTile(
-                    leading: const Icon(Icons.lock_reset),
-
-                    title: const Text("Change Password"),
-
-                    trailing: const Icon(Icons.chevron_right),
-
-                    onTap: () {
-                      changePassword(context);
-                    },
+                  const Text(
+                    'Account',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
                   ),
-
-                  const Divider(),
-
-                  ListTile(
-                    leading: const Icon(Icons.dark_mode),
-
-                    title: const Text("Dark Mode"),
-
-                    trailing: const Icon(Icons.chevron_right),
-
-                    onTap: () {},
-                  ),
-
-                  const Divider(),
-
-                  ListTile(
-                    leading: const Icon(Icons.logout, color: Colors.red),
-
-                    title: const Text(
-                      "Logout",
-                      style: TextStyle(color: Colors.red),
+                  const SizedBox(height: 9),
+                  Material(
+                    color: colors.surface,
+                    borderRadius: BorderRadius.circular(20),
+                    child: ListTile(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        side: BorderSide(
+                          color: colors.outlineVariant.withValues(alpha: .6),
+                        ),
+                      ),
+                      leading: const CircleAvatar(
+                        backgroundColor: Color(0xFFE8EEFF),
+                        child: Icon(Icons.lock_reset_rounded, color: navy),
+                      ),
+                      title: const Text(
+                        'Change Password',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      subtitle: const Text(
+                        'Receive a secure reset link by email',
+                      ),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () => _changePassword(context),
                     ),
-
-                    onTap: () {
-                      logout(context);
-                    },
+                  ),
+                  const SizedBox(height: 18),
+                  const Text(
+                    'Appearance',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 9),
+                  ValueListenableBuilder<ThemeMode>(
+                    valueListenable: AppTheme.themeMode,
+                    builder: (context, mode, _) => Material(
+                      color: colors.surface,
+                      borderRadius: BorderRadius.circular(20),
+                      child: SwitchListTile(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          side: BorderSide(
+                            color: colors.outlineVariant.withValues(alpha: .6),
+                          ),
+                        ),
+                        secondary: CircleAvatar(
+                          backgroundColor: green.withValues(alpha: .12),
+                          child: const Icon(
+                            Icons.dark_mode_rounded,
+                            color: green,
+                          ),
+                        ),
+                        title: const Text(
+                          'Dark Mode',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        subtitle: const Text(
+                          'Use a darker theme throughout the app',
+                        ),
+                        value: mode == ThemeMode.dark,
+                        activeThumbColor: green,
+                        onChanged: AppTheme.toggleTheme,
+                      ),
+                    ),
                   ),
                 ],
               ),

@@ -49,6 +49,8 @@ class RequestPost {
     this.chatId,
     this.pendingHelperName,
     this.pendingHelperId,
+    this.isDeleted = false,
+    this.isBanned = false,
   });
 
   final String id;
@@ -67,6 +69,20 @@ class RequestPost {
   final String? chatId;
   final String? pendingHelperName;
   final String? pendingHelperId;
+  final bool isDeleted;
+  final bool isBanned;
+}
+
+class UpdateRequestPostInput {
+  const UpdateRequestPostInput({
+    required this.title,
+    required this.skillNeeded,
+    required this.description,
+  });
+
+  final String title;
+  final String skillNeeded;
+  final String description;
 }
 
 class CreateRequestPostInput {

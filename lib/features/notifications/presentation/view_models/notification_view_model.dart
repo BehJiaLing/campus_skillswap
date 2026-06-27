@@ -20,7 +20,11 @@ class NotificationViewModel extends ChangeNotifier {
 
   String? get currentUserId => _authRepository.currentUserId;
 
-  Future<bool> respond(AppNotification notification, bool accepted) async {
+  Future<bool> respond(
+    AppNotification notification,
+    bool accepted, {
+    String? rejectionMessage,
+  }) async {
     final userId = currentUserId;
     if (userId == null) return false;
     busy = true;
@@ -32,6 +36,7 @@ class NotificationViewModel extends ChangeNotifier {
         postId: notification.postId,
         helperId: userId,
         accepted: accepted,
+        rejectionMessage: rejectionMessage,
       );
       return true;
     } catch (error) {

@@ -16,6 +16,10 @@ class MyRequestsViewModel {
     AuthRepository authRepository,
   ) {
     final userId = authRepository.currentUserId;
-    return userId == null ? null : repository.watchByOwner(userId);
+    return userId == null
+        ? null
+        : repository
+              .watchByOwner(userId)
+              .map((posts) => posts.where((post) => !post.isDeleted).toList());
   }
 }

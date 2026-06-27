@@ -145,11 +145,73 @@ class FirebasePostService {
     return _notifications.doc(notificationId).update({'isRead': true});
   }
 
-  Future<void> addComment(String postId, Map<String, dynamic> data) {
-    return _posts.doc(postId).collection('comments').add({
+  Future<void> addComment(String postId, Map<String, dynamic> data) async {
+    final post =
+        (await _posts.doc(postId).get()).data() ?? const <String, dynamic>{};
+    final batch = _firestore.batch();
+    batch.set(_posts.doc(postId).collection('comments').doc(), {
       ...data,
       'createdAt': FieldValue.serverTimestamp(),
     });
+    final ownerId = post['userId']?.toString() ?? '';
+    final commenterId = data['userId']?.toString() ?? '';
+    if (ownerId.isNotEmpty && ownerId != commenterId) {
+      batch.set(_notifications.doc(), {
+        'recipientId': ownerId,
+        'senderId': commenterId,
+        'senderName': data['userName'] ?? 'A student',
+        'type': 'post_comment',
+        'postId': postId,
+        'postTitle': post['title'] ?? 'Skill request',
+        'message':
+            '${data['userName'] ?? 'A student'} commented: "${data['message'] ?? ''}"',
+        'status': 'info',
+        'isRead': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    }
+    await batch.commit();
+  }
+
+  Future<void> updatePost(String postId, UpdateRequestPostInput input) {
+    return _posts.doc(postId).update({
+      'title': input.title.trim(),
+      'skillNeeded': input.skillNeeded.trim(),
+      'description': input.description.trim(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> softDeletePost(String postId, String userId) async {
+    final postRef = _posts.doc(postId);
+    final snapshot = await postRef.get();
+    final data = snapshot.data();
+    if (data == null || data['userId'] != userId) {
+      throw Exception('Only the post owner can delete this post.');
+    }
+    final batch = _firestore.batch();
+    batch.set(
+      _firestore.collection('deleted_posts_history').doc(postId),
+      {
+        ...data,
+        'postId': postId,
+        'originalData': data,
+        'previousStatus': data['status'] ?? 'open',
+        'deletedAt': FieldValue.serverTimestamp(),
+        'deletedByUid': userId,
+        'deletedByEmail': 'Post owner',
+        'isRestored': false,
+      },
+      SetOptions(merge: true),
+    );
+    batch.update(postRef, {
+      'isDeleted': true,
+      'previousStatus': data['status'] ?? 'open',
+      'deletedAt': FieldValue.serverTimestamp(),
+      'deletedByUid': userId,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    await batch.commit();
   }
 
   Future<void> updateStatus(String postId, RequestPostStatus status) {
@@ -206,6 +268,25 @@ class FirebasePostService {
         'isRead': false,
         'createdAt': FieldValue.serverTimestamp(),
       });
+      for (final offer in offersSnapshot.docs) {
+        final offerData = offer.data();
+        if (offerData['status'] != null && offerData['status'] != 'pending') {
+          continue;
+        }
+        batch.set(_notifications.doc(), {
+          'recipientId': offer.id,
+          'senderId': ownerId,
+          'senderName': post['userName'] ?? 'The requester',
+          'type': 'offer_on_hold',
+          'postId': postId,
+          'postTitle': post['title'] ?? 'Skill request',
+          'message':
+              '${post['userName'] ?? 'The requester'} is waiting for another invited helper to reply. Your offer remains on hold.',
+          'status': 'pending',
+          'isRead': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
       await batch.commit();
       return '';
     }
@@ -270,6 +351,18 @@ class FirebasePostService {
       'isRead': false,
       'createdAt': FieldValue.serverTimestamp(),
     });
+    batch.set(_notifications.doc(), {
+      'recipientId': ownerId,
+      'senderId': helperId,
+      'senderName': helperName,
+      'type': 'post_status',
+      'postId': postId,
+      'postTitle': 'Skill request',
+      'message': 'Your post status changed to MATCHED with $helperName.',
+      'status': 'info',
+      'isRead': false,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
 
     await batch.commit();
     return chatId;
@@ -280,6 +373,7 @@ class FirebasePostService {
     required String postId,
     required String helperId,
     required bool accepted,
+    String? rejectionMessage,
   }) async {
     final postRef = _posts.doc(postId);
     final postSnapshot = await postRef.get();
@@ -334,11 +428,27 @@ class FirebasePostService {
       'postTitle': post['title'] ?? 'Skill request',
       'message': accepted
           ? '$helperName accepted your helper invitation.'
+          : rejectionMessage?.trim().isNotEmpty == true
+          ? '$helperName declined your helper invitation: ${rejectionMessage!.trim()}'
           : '$helperName declined your helper invitation.',
       'status': accepted ? 'accepted' : 'rejected',
       'isRead': false,
       'createdAt': FieldValue.serverTimestamp(),
     });
+    if (accepted) {
+      batch.set(_notifications.doc(), {
+        'recipientId': ownerId,
+        'senderId': helperId,
+        'senderName': helperName,
+        'type': 'post_status',
+        'postId': postId,
+        'postTitle': post['title'] ?? 'Skill request',
+        'message': 'Your post status changed to MATCHED with $helperName.',
+        'status': 'info',
+        'isRead': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    }
     await batch.commit();
   }
 
@@ -346,6 +456,7 @@ class FirebasePostService {
     required String postId,
     required String helperId,
     required bool accepted,
+    String? rejectionMessage,
   }) async {
     final snapshot = await _notifications
         .where('recipientId', isEqualTo: helperId)
@@ -364,6 +475,7 @@ class FirebasePostService {
       postId: postId,
       helperId: helperId,
       accepted: accepted,
+      rejectionMessage: rejectionMessage,
     );
   }
 
@@ -436,6 +548,10 @@ class FirebasePostService {
           const <String, dynamic>{};
       final user =
           (await transaction.get(userRef)).data() ?? const <String, dynamic>{};
+      final existingRating = await transaction.get(ratingRef);
+      if (existingRating.exists || post['status'] == 'completed') {
+        throw Exception('This post was already completed and rated.');
+      }
       final oldCount = (user['ratingCount'] as num?)?.toInt() ?? 0;
       final oldTotal =
           (user['ratingTotal'] as num?)?.toDouble() ??
@@ -470,6 +586,19 @@ class FirebasePostService {
         'message': review.isEmpty
             ? 'You received $stars stars. Your rating is now ${newAverage.toStringAsFixed(1)} and you have $newPoints points.'
             : 'You received $stars stars: "$review". Your rating is now ${newAverage.toStringAsFixed(1)} and you have $newPoints points.',
+        'status': 'info',
+        'isRead': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      transaction.set(_notifications.doc(), {
+        'recipientId': fromUserId,
+        'senderId': toUserId,
+        'senderName': data['helperName'] ?? 'Matched helper',
+        'type': 'post_status',
+        'postId': postId,
+        'postTitle': post['title'] ?? 'Skill request',
+        'message':
+            'Your post status changed to DONE. The helper rating and points were saved.',
         'status': 'info',
         'isRead': false,
         'createdAt': FieldValue.serverTimestamp(),
