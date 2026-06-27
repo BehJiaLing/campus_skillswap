@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'firebase_options.dart';
 import 'core/theme/app_theme.dart';
@@ -32,8 +33,11 @@ import 'features/admin/presentation/views/admin_user_access.dart';
 import 'features/chat/presentation/views/chat_list_page.dart';
 import 'features/profile/presentation/views/profile_page.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await dotenv.load(fileName: "assets/.env");
+
   runApp(const AppBootstrap());
 }
 
@@ -98,28 +102,28 @@ class _AppBootstrapState extends State<AppBootstrap> {
             child: _startupError == null
                 ? const CircularProgressIndicator()
                 : Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.error_outline,
-                          color: Colors.redAccent,
-                          size: 48,
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Campus SkillSwap could not start.',
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: _initialize,
-                          child: const Text('Try Again'),
-                        ),
-                      ],
-                    ),
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.error_outline,
+                    color: Colors.redAccent,
+                    size: 48,
                   ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Campus SkillSwap could not start.',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _initialize,
+                    child: const Text('Try Again'),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -143,7 +147,6 @@ class MyApp extends StatelessWidget {
           title: 'Campus SkillSwap',
           debugShowCheckedModeBanner: false,
           themeMode: themeMode,
-
           theme: ThemeData(
             useMaterial3: true,
             brightness: Brightness.light,
@@ -156,16 +159,10 @@ class MyApp extends StatelessWidget {
               backgroundColor: Color(0xFF1A1F5E),
               foregroundColor: Colors.white,
             ),
-            textTheme: const TextTheme(bodyMedium: TextStyle(color: darkText)),
-            cardTheme: CardThemeData(
-              color: Colors.white,
-              elevation: 1,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.all(Radius.circular(14)),
-              ),
+            textTheme: const TextTheme(
+              bodyMedium: TextStyle(color: darkText),
             ),
           ),
-
           darkTheme: ThemeData(
             useMaterial3: true,
             brightness: Brightness.dark,
@@ -174,54 +171,33 @@ class MyApp extends StatelessWidget {
               seedColor: const Color(0xFF1A1F5E),
               brightness: Brightness.dark,
             ),
-            appBarTheme: const AppBarTheme(
-              backgroundColor: Color(0xFF111827),
-              foregroundColor: Colors.white,
-            ),
-            cardTheme: CardThemeData(
-              color: const Color(0xFF1F2937),
-              elevation: 1,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.all(Radius.circular(14)),
-              ),
-            ),
-            inputDecorationTheme: InputDecorationTheme(
-              filled: true,
-              fillColor: const Color(0xFF1F2937),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
           ),
-
           home: AuthGate(
             viewModel: StartupViewModel(
               dependencies.authRepository,
               dependencies.userProfileRepository,
             ),
           ),
-
           routes: {
-            // Auth pages always light mode
             '/login': (context) => const LightThemeWrapper(child: LoginPage()),
             '/signup': (context) =>
-                const LightThemeWrapper(child: SignUpPage()),
+            const LightThemeWrapper(child: SignUpPage()),
             '/verify-email': (context) =>
-                const LightThemeWrapper(child: VerifyEmailPage()),
+            const LightThemeWrapper(child: VerifyEmailPage()),
             '/create-profile': (context) =>
-                const LightThemeWrapper(child: CreateProfilePage()),
+            const LightThemeWrapper(child: CreateProfilePage()),
             '/forgot-password': (context) =>
-                const LightThemeWrapper(child: ForgotPasswordPage()),
+            const LightThemeWrapper(child: ForgotPasswordPage()),
 
-            // User
             '/post': (context) => PostPage(
               viewModel: PostFeedViewModel(dependencies.postRepository),
-              detailViewModelBuilder: (postId) => RequestPostDetailViewModel(
-                dependencies.postRepository,
-                dependencies.authRepository,
-                dependencies.userProfileRepository,
-                postId,
-              ),
+              detailViewModelBuilder: (postId) =>
+                  RequestPostDetailViewModel(
+                    dependencies.postRepository,
+                    dependencies.authRepository,
+                    dependencies.userProfileRepository,
+                    postId,
+                  ),
             ),
             '/create-post': (context) => CreatePostPage(
               viewModel: CreatePostViewModel(
@@ -235,30 +211,24 @@ class MyApp extends StatelessWidget {
                 dependencies.postRepository,
                 dependencies.authRepository,
               ),
-              detailViewModelBuilder: (postId) => RequestPostDetailViewModel(
-                dependencies.postRepository,
-                dependencies.authRepository,
-                dependencies.userProfileRepository,
-                postId,
-              ),
+              detailViewModelBuilder: (postId) =>
+                  RequestPostDetailViewModel(
+                    dependencies.postRepository,
+                    dependencies.authRepository,
+                    dependencies.userProfileRepository,
+                    postId,
+                  ),
             ),
             '/chat': (context) => const ChatListPage(),
             '/profile': (context) => const ProfilePage(),
 
-            // Admin
             '/admin/dashboard': (context) => const AdminDashboardPage(),
             '/admin/user-management': (context) => const UserManagementPage(),
             '/admin/users': (context) => const AdminUsersPage(),
             '/admin/post-management': (context) =>
-                const AdminPostManagementPage(),
+            const AdminPostManagementPage(),
             '/admin/settings': (context) => const AdminSettingsPage(),
             '/admin/user-access': (context) => const AdminUserAccessPage(),
-          },
-
-          onUnknownRoute: (settings) {
-            return MaterialPageRoute(
-              builder: (context) => const LightThemeWrapper(child: LoginPage()),
-            );
           },
         );
       },
@@ -274,39 +244,7 @@ class LightThemeWrapper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Theme(
-      data: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.light,
-        scaffoldBackgroundColor: Colors.white,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFC8D4F0),
-          brightness: Brightness.light,
-        ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF1A1F5E),
-          foregroundColor: Colors.white,
-        ),
-        textTheme: const TextTheme(
-          bodyMedium: TextStyle(color: Color(0xFF1F223D)),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: Colors.white,
-          hintStyle: const TextStyle(color: Color(0xFF6B6B8A)),
-          labelStyle: const TextStyle(color: Color(0xFF6B6B8A)),
-          prefixIconColor: const Color(0xFF1A1F5E),
-          suffixIconColor: const Color(0xFF6B6B8A),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFFE0E0F0)),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFF1A1F5E), width: 1.4),
-          ),
-        ),
-      ),
+      data: ThemeData(useMaterial3: true, brightness: Brightness.light),
       child: child,
     );
   }

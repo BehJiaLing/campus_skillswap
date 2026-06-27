@@ -37,9 +37,7 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
     final message = success
         ? successMessage
         : widget.viewModel.errorMessage ?? 'Something went wrong.';
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -60,26 +58,34 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
             if (snapshot.hasError) {
               return const Center(child: Text('Failed to load request'));
             }
+
             if (!snapshot.hasData) {
               return const Center(child: CircularProgressIndicator());
             }
+
             final post = snapshot.data;
+
             if (post == null) {
               return const Center(child: Text('Post not found'));
             }
 
-            return SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _requestCard(post),
-                  _section('Status Progress', _progress(post.status)),
-                  _actionArea(post),
-                  if (widget.viewModel.isOwner(post)) _offers(post),
-                  _comments(),
-                  _ratings(post),
-                ],
+            return Scrollbar(
+              thumbVisibility: true,
+              thickness: 6,
+              radius: const Radius.circular(20),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _requestCard(post),
+                    _section('Status Progress', _progress(post.status)),
+                    _actionArea(post),
+                    if (widget.viewModel.isOwner(post)) _offers(post),
+                    _comments(),
+                    _ratings(post),
+                  ],
+                ),
               ),
             );
           },
@@ -130,6 +136,7 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
 
   Widget _actionArea(RequestPost post) {
     Widget? action;
+
     if (widget.viewModel.canOffer(post)) {
       action = _button('Offer Help', Icons.volunteer_activism, () async {
         showResult(
@@ -143,6 +150,7 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
       final label = post.status == RequestPostStatus.matched
           ? 'Start Skill Exchange'
           : 'Mark as Completed';
+
       action = _button(label, Icons.check_circle_outline, () async {
         showResult(
           await widget.viewModel.advanceStatus(post),
@@ -151,35 +159,43 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
       });
     }
 
-    final canOpenChat =
-        post.chatId != null &&
+    final canOpenChat = post.chatId != null &&
         (widget.viewModel.currentUserId == post.userId ||
             widget.viewModel.currentUserId == post.matchedUserId);
 
     if (action == null && !canOpenChat) return const SizedBox(height: 4);
+
     final actions = <Widget>[];
+
     if (action != null) actions.add(action);
     if (action != null && canOpenChat) actions.add(const SizedBox(height: 10));
+
     if (canOpenChat) {
       actions.add(
-        _button('Open Chat', Icons.chat_bubble_outline, () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => ChatDetailPage(
-                userName: widget.viewModel.isOwner(post)
-                    ? post.matchedUserName ?? 'Matched Helper'
-                    : post.userName,
-                chatId: post.chatId!,
-                otherUserId: widget.viewModel.isOwner(post)
-                    ? post.matchedUserId!
-                    : post.userId,
+        _button(
+          'Open Chat',
+          Icons.chat_bubble_outline,
+              () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ChatDetailPage(
+                  userName: widget.viewModel.isOwner(post)
+                      ? post.matchedUserName ?? 'Matched Helper'
+                      : post.userName,
+                  chatId: post.chatId!,
+                  otherUserId: widget.viewModel.isOwner(post)
+                      ? post.matchedUserId!
+                      : post.userId,
+                ),
               ),
-            ),
-          );
-        }, secondary: true),
+            );
+          },
+          secondary: true,
+        ),
       );
     }
+
     return Padding(
       padding: const EdgeInsets.only(top: 12),
       child: Column(children: actions),
@@ -187,43 +203,173 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
   }
 
   Widget _offers(RequestPost post) => _section(
-    'Helper Matching',
+    'AI Matching Suggestion',
     StreamBuilder<List<HelpOffer>>(
       stream: widget.viewModel.offers,
       builder: (context, snapshot) {
         final offers = snapshot.data ?? const [];
+
         if (offers.isEmpty) {
-          return const Text(
-            'No offers yet. Matching improves as students offer help.',
+          return const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.auto_awesome, size: 36),
+              SizedBox(height: 10),
+              Text(
+                'No matching helper yet.',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              SizedBox(height: 6),
+              Text(
+                'When students offer help, the system will suggest the best match based on skill, course, and match score.',
+              ),
+            ],
           );
         }
+
+        final sortedOffers = [...offers]
+          ..sort((a, b) => b.matchScore.compareTo(a.matchScore));
+
         return Column(
-          children: offers.map((offer) {
-            return ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: CircleAvatar(child: Text('${offer.matchScore}%')),
-              title: Text(offer.userName),
-              subtitle: Text('${offer.course}\n${offer.skills.join(', ')}'),
-              isThreeLine: true,
-              trailing: offer.status == 'accepted'
-                  ? const Icon(Icons.check_circle, color: Colors.green)
-                  : post.status == RequestPostStatus.open
-                  ? FilledButton(
-                      onPressed: widget.viewModel.busy
-                          ? null
-                          : () async => showResult(
-                              await widget.viewModel.acceptOffer(post, offer),
-                              '${offer.userName} was accepted.',
+          children: sortedOffers.map((offer) {
+            final isBest = offer == sortedOffers.first;
+            final isAccepted = offer.status == 'accepted';
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 14),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: isBest ? green : Colors.transparent,
+                  width: 2,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (isBest)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: green,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'Best AI Match',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 28,
+                        backgroundColor: cardBlue,
+                        child: Text(
+                          '${offer.matchScore}%',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              offer.userName,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                      child: const Text('Accept'),
-                    )
-                  : null,
+                            Text(
+                              offer.course,
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (isAccepted)
+                        const Icon(
+                          Icons.check_circle,
+                          color: Colors.green,
+                          size: 30,
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Skills: ${offer.skills.join(', ')}',
+                    style: const TextStyle(fontSize: 15),
+                  ),
+                  const SizedBox(height: 10),
+                  LinearProgressIndicator(
+                    value: offer.matchScore / 100,
+                    minHeight: 8,
+                    backgroundColor: Colors.grey.shade200,
+                    color: offer.matchScore >= 80
+                        ? Colors.green
+                        : offer.matchScore >= 60
+                        ? Colors.orange
+                        : Colors.redAccent,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _matchReason(offer),
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  if (post.status == RequestPostStatus.open &&
+                      offer.status != 'accepted') ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: widget.viewModel.busy
+                            ? null
+                            : () async => showResult(
+                          await widget.viewModel.acceptOffer(
+                            post,
+                            offer,
+                          ),
+                          '${offer.userName} was accepted.',
+                        ),
+                        icon: const Icon(Icons.person_add_alt_1),
+                        label: const Text('Accept Helper'),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             );
           }).toList(),
         );
       },
     ),
   );
+
+  String _matchReason(HelpOffer offer) {
+    if (offer.matchScore >= 90) {
+      return 'Strong match: this helper has related skills and is from the same course.';
+    } else if (offer.matchScore >= 80) {
+      return 'Good match: this helper has the skill needed for this request.';
+    } else if (offer.matchScore >= 60) {
+      return 'Moderate match: this helper may be suitable, but skill/course match is not perfect.';
+    } else {
+      return 'Low match: this helper can offer help, but may not fully match the request.';
+    }
+  }
 
   Widget _comments() => _section(
     'Comments',
@@ -233,17 +379,21 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
           stream: widget.viewModel.comments,
           builder: (context, snapshot) {
             final comments = snapshot.data ?? const [];
+
             if (comments.isEmpty) return const Text('No comments yet.');
+
             return Column(
               children: comments
                   .map(
                     (comment) => ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const CircleAvatar(child: Icon(Icons.person)),
-                      title: Text(comment.userName),
-                      subtitle: Text(comment.message),
-                    ),
-                  )
+                  contentPadding: EdgeInsets.zero,
+                  leading: const CircleAvatar(
+                    child: Icon(Icons.person),
+                  ),
+                  title: Text(comment.userName),
+                  subtitle: Text(comment.message),
+                ),
+              )
                   .toList(),
             );
           },
@@ -265,12 +415,12 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
               onPressed: widget.viewModel.busy
                   ? null
                   : () async {
-                      final success = await widget.viewModel.addComment(
-                        commentController.text,
-                      );
-                      if (success) commentController.clear();
-                      showResult(success, 'Comment added.');
-                    },
+                final success = await widget.viewModel.addComment(
+                  commentController.text,
+                );
+                if (success) commentController.clear();
+                showResult(success, 'Comment added.');
+              },
               icon: const Icon(Icons.send),
             ),
           ],
@@ -288,23 +438,27 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
           stream: widget.viewModel.ratings,
           builder: (context, snapshot) {
             final ratings = snapshot.data ?? const [];
+
             if (ratings.isEmpty) return const Text('No ratings yet.');
+
             return Column(
               children: ratings
                   .map(
                     (rating) => ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Text(
-                        '${rating.stars} ★',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      title: Text(
-                        rating.review.isEmpty
-                            ? 'No written review'
-                            : rating.review,
-                      ),
+                  contentPadding: EdgeInsets.zero,
+                  leading: Text(
+                    '${rating.stars} ★',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
                     ),
-                  )
+                  ),
+                  title: Text(
+                    rating.review.isEmpty
+                        ? 'No written review'
+                        : rating.review,
+                  ),
+                ),
+              )
                   .toList(),
             );
           },
@@ -405,10 +559,13 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
       RequestPostStatus.completed => 3,
       RequestPostStatus.cancelled => 0,
     };
+
     const labels = ['Open', 'Matched', 'Progress', 'Done'];
+
     return Row(
       children: List.generate(labels.length, (index) {
         final active = index <= step;
+
         return Expanded(
           child: Column(
             children: [
@@ -423,7 +580,9 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
               const SizedBox(height: 7),
               Text(
                 labels[index],
-                style: TextStyle(fontWeight: active ? FontWeight.bold : null),
+                style: TextStyle(
+                  fontWeight: active ? FontWeight.bold : null,
+                ),
               ),
             ],
           ),
@@ -433,11 +592,11 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
   }
 
   Widget _button(
-    String label,
-    IconData icon,
-    VoidCallback onPressed, {
-    bool secondary = false,
-  }) {
+      String label,
+      IconData icon,
+      VoidCallback onPressed, {
+        bool secondary = false,
+      }) {
     return SizedBox(
       width: double.infinity,
       child: FilledButton.icon(
