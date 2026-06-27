@@ -197,9 +197,29 @@ class ProfilePage extends StatelessWidget {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: [
-                              statBox("0", "Posts", Icons.article),
-                              statBox("0.0", "Rating", Icons.star),
-                              statBox("0", "Points", Icons.workspace_premium),
+                              StreamBuilder<QuerySnapshot>(
+                                stream: FirebaseFirestore.instance
+                                    .collection('posts')
+                                    .where('userId', isEqualTo: uid)
+                                    .snapshots(),
+                                builder: (context, posts) => statBox(
+                                  '${posts.data?.docs.length ?? 0}',
+                                  "Posts",
+                                  Icons.article,
+                                ),
+                              ),
+                              statBox(
+                                ((data['averageRating'] as num?)?.toDouble() ??
+                                        0)
+                                    .toStringAsFixed(1),
+                                "Rating",
+                                Icons.star,
+                              ),
+                              statBox(
+                                '${(data['rewardPoints'] as num?)?.toInt() ?? 0}',
+                                "Points",
+                                Icons.workspace_premium,
+                              ),
                             ],
                           ),
                         ],
@@ -217,18 +237,31 @@ class ProfilePage extends StatelessWidget {
                         BoxShadow(color: Colors.black12, blurRadius: 5),
                       ],
                     ),
-                    child: ListTile(
-                      leading: const Icon(Icons.settings),
-                      title: const Text("Settings"),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const SettingsPage(),
-                          ),
-                        );
-                      },
+                    child: Column(
+                      children: [
+                        ListTile(
+                          leading: const Icon(Icons.article_outlined),
+                          title: const Text("My Posts"),
+                          subtitle: const Text('View and manage your requests'),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () =>
+                              Navigator.pushNamed(context, '/my-posts'),
+                        ),
+                        const Divider(height: 1),
+                        ListTile(
+                          leading: const Icon(Icons.settings),
+                          title: const Text("Settings"),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const SettingsPage(),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
                     ),
                   ),
                 ],

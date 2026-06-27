@@ -1,14 +1,15 @@
 enum RequestPostStatus {
   open,
   matched,
-  inProgress,
   completed,
+  // Kept only so older Firestore records remain readable.
+  inProgress,
   cancelled;
 
   factory RequestPostStatus.fromValue(Object? value) {
     return switch (value?.toString().toLowerCase()) {
       'matched' => RequestPostStatus.matched,
-      'in_progress' => RequestPostStatus.inProgress,
+      'in_progress' => RequestPostStatus.matched,
       'completed' => RequestPostStatus.completed,
       'cancelled' => RequestPostStatus.cancelled,
       _ => RequestPostStatus.open,
@@ -16,16 +17,16 @@ enum RequestPostStatus {
   }
 
   String get firestoreValue => switch (this) {
-    RequestPostStatus.inProgress => 'in_progress',
+    RequestPostStatus.inProgress => 'matched',
     _ => name,
   };
 
   String get label => switch (this) {
     RequestPostStatus.open => 'Open',
     RequestPostStatus.matched => 'Matched',
-    RequestPostStatus.inProgress => 'In Progress',
-    RequestPostStatus.completed => 'Completed',
-    RequestPostStatus.cancelled => 'Cancelled',
+    RequestPostStatus.inProgress => 'Matched',
+    RequestPostStatus.completed => 'Done',
+    RequestPostStatus.cancelled => 'Done',
   };
 }
 
@@ -46,6 +47,8 @@ class RequestPost {
     this.matchedUserName,
     this.matchedUserId,
     this.chatId,
+    this.pendingHelperName,
+    this.pendingHelperId,
   });
 
   final String id;
@@ -62,6 +65,8 @@ class RequestPost {
   final String? matchedUserName;
   final String? matchedUserId;
   final String? chatId;
+  final String? pendingHelperName;
+  final String? pendingHelperId;
 }
 
 class CreateRequestPostInput {

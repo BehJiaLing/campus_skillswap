@@ -26,4 +26,8 @@ class FirebaseUserProfileService {
   Future<void> updateProfile(String userId, Map<String, dynamic> data) {
     return _firestore.collection('users').doc(userId).update(data);
   }
+
+  Future<QuerySnapshot<Map<String, dynamic>>> fetchAllProfiles() {
+    return FirebaseFirestore.instance.collection('users').get();
+  }
 }

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class BottomSidebar extends StatelessWidget {
   final int currentIndex;
@@ -47,10 +49,42 @@ class BottomSidebar extends StatelessWidget {
           _navIcon(context, Icons.home_rounded, 0),
           _navIcon(context, Icons.chat_bubble_rounded, 1),
           _navIcon(context, Icons.add_box_rounded, 2),
-          _navIcon(context, Icons.notifications_rounded, 3),
+          _notificationIcon(context),
           _navIcon(context, Icons.person_rounded, 4),
         ],
       ),
+    );
+  }
+
+  Widget _notificationIcon(BuildContext context) {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) {
+      return _navIcon(context, Icons.notifications_rounded, 3);
+    }
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('notifications')
+          .where('recipientId', isEqualTo: userId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        final unread =
+            snapshot.data?.docs.any(
+              (document) => document.data()['isRead'] != true,
+            ) ==
+            true;
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            _navIcon(context, Icons.notifications_rounded, 3),
+            if (unread)
+              const Positioned(
+                right: 3,
+                top: 2,
+                child: CircleAvatar(radius: 6, backgroundColor: Colors.red),
+              ),
+          ],
+        );
+      },
     );
   }
 

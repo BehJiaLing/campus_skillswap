@@ -3,6 +3,7 @@ class HelpOffer {
     required this.userId,
     required this.userName,
     required this.course,
+    required this.campus,
     required this.skills,
     required this.matchScore,
     required this.status,
@@ -12,6 +13,7 @@ class HelpOffer {
   final String userId;
   final String userName;
   final String course;
+  final String campus;
   final List<String> skills;
   final int matchScore;
   final String status;
