@@ -83,6 +83,16 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
 
       final postSnapshot = await postRef.get();
       final originalData = postSnapshot.data() ?? {};
+      final offersSnapshot = await postRef.collection('offers').get();
+      final helperRecipients =
+          <String>{
+            ...offersSnapshot.docs.map((document) => document.id),
+            originalData['matchedUserId']?.toString() ?? '',
+            originalData['pendingHelperId']?.toString() ?? '',
+          }..removeWhere(
+            (recipientId) =>
+                recipientId.isEmpty || recipientId == post.ownerUid,
+          );
 
       final deletedRef = FirebaseFirestore.instance
           .collection('deleted_posts_history')
@@ -116,6 +126,22 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
+      for (final recipientId in helperRecipients) {
+        batch.set(FirebaseFirestore.instance.collection('notifications').doc(), {
+          'recipientId': recipientId,
+          'senderId': admin?.uid ?? '',
+          'senderName': 'Campus SkillSwap Admin',
+          'type': 'post_deleted',
+          'postId': post.postId,
+          'postTitle': post.title,
+          'message':
+              'The post "${post.title}" was deleted and is no longer available. Any rating and reward points already earned will remain.',
+          'status': 'info',
+          'isRead': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
       await batch.commit();
 
       if (post.ownerUid.isNotEmpty) {
@@ -136,7 +162,10 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
       if (!context.mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Post deleted successfully')),
+        const SnackBar(
+          content: Text('Post deleted successfully'),
+          backgroundColor: Colors.red,
+        ),
       );
     } catch (e) {
       if (!context.mounted) return;
@@ -153,7 +182,10 @@ class _AdminPostManagementPageState extends State<AdminPostManagementPage> {
   Future<void> banPost(BuildContext context, _PostViewData post) async {
     if (post.isBanned) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('This post is already banned')),
+        const SnackBar(
+          content: Text('This post is already banned'),
+          backgroundColor: Colors.red,
+        ),
       );
       return;
     }

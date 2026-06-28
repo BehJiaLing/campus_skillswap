@@ -41,6 +41,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
           content: Text(
             widget.viewModel.errorMessage ?? 'Unable to create request.',
           ),
+          backgroundColor: Colors.red,
         ),
       );
     }

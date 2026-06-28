@@ -44,7 +44,10 @@ class AdminSettingsPage extends StatelessWidget {
 
     if (email == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("No email found for this account")),
+        const SnackBar(
+          content: Text("No email found for this account"),
+          backgroundColor: Colors.red,
+        ),
       );
       return;
     }
@@ -60,9 +63,12 @@ class AdminSettingsPage extends StatelessWidget {
     } catch (e) {
       if (!context.mounted) return;
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Failed to send reset email: $e")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Failed to send reset email: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -84,9 +90,12 @@ class AdminSettingsPage extends StatelessWidget {
     } catch (e) {
       if (!context.mounted) return;
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Logout failed: $e")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Logout failed: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 

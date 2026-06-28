@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/widgets/bottom_sidebar.dart';
@@ -32,10 +34,7 @@ class PostPage extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            const SkillSwapPageHeader(
-              title: 'Discover Requests',
-              subtitle: 'Find an open request and share what you know.',
-            ),
+            _userHeader(),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
               child: Row(
@@ -106,6 +105,31 @@ class PostPage extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _userHeader() {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) {
+      return const SkillSwapPageHeader(
+        title: 'Discover Requests',
+        subtitle: 'Find an open request and share what you know.',
+      );
+    }
+
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        final data = snapshot.data?.data() ?? const <String, dynamic>{};
+        final name = (data['name'] ?? data['fullName'] ?? '').toString().trim();
+        return SkillSwapPageHeader(
+          title: name.isEmpty ? 'Discover Requests' : 'Hi, $name 👋',
+          subtitle: 'Find an open request and share what you know.',
+        );
+      },
     );
   }
 

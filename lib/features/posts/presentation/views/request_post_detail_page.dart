@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../chat/presentation/views/chat_detail_page.dart';
 import '../../../../core/widgets/blocking_loading_overlay.dart';
+import '../../../../core/widgets/skill_swap_page_header.dart';
 import '../../models/ai_match.dart';
 import '../../models/request_interactions.dart';
 import '../../models/request_post.dart';
@@ -22,7 +23,8 @@ class RequestPostDetailPage extends StatefulWidget {
 }
 
 class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
-  static const navy = Color(0xFF1A1F5E);
+  static const navy = Color(0xFF102A72);
+  static const brandGreen = Color(0xFF12A875);
   static const darkText = Color(0xFF1F223D);
   static const bg = Color(0xFFF7F8FC);
   static const softBlue = Color(0xFFEAF2FF);
@@ -41,14 +43,21 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
     super.dispose();
   }
 
-  void showResult(bool success, String successMessage) {
+  void showResult(
+    bool success,
+    String successMessage, {
+    bool destructive = false,
+  }) {
     if (!mounted) return;
     final message = success
         ? successMessage
         : widget.viewModel.errorMessage ?? 'Something went wrong.';
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: success && !destructive ? brandGreen : Colors.red,
+      ),
+    );
   }
 
   @override
@@ -63,69 +72,88 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
             backgroundColor: Theme.of(context).brightness == Brightness.dark
                 ? const Color(0xFF0F172A)
                 : const Color(0xFFF4F7FB),
-            appBar: AppBar(
-              title: const Text('Request Details'),
-              backgroundColor: navy,
-              foregroundColor: Colors.white,
-              elevation: 0,
-            ),
-            body: StreamBuilder<RequestPost?>(
-              stream: widget.viewModel.post,
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return const Center(child: Text('Failed to load request'));
-                }
-
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                final post = snapshot.data;
-
-                if (post == null) {
-                  return const Center(child: Text('Post not found'));
-                }
-
-                if (post.isBanned && !widget.viewModel.isOwner(post)) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Text(
-                        'This post has been banned and is unavailable.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 18, color: Colors.redAccent),
-                      ),
-                    ),
-                  );
-                }
-
-                return Scrollbar(
-                  thumbVisibility: true,
-                  thickness: 5,
-                  radius: const Radius.circular(20),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _requestHeader(post),
-                        _section(
-                          title: 'Status Progress',
-                          icon: Icons.timeline_rounded,
-                          child: _progress(post.status),
-                        ),
-                        if (widget.viewModel.isOwner(post) ||
-                            post.pendingHelperId ==
-                                widget.viewModel.currentUserId ||
-                            post.matchedUserId != null)
-                          _offers(post),
-                        _actionArea(post),
-                        _comments(),
-                      ],
+            body: SafeArea(
+              child: Column(
+                children: [
+                  SkillSwapPageHeader(
+                    title: 'Request Details',
+                    subtitle: 'Track the request, helpers and conversation.',
+                    trailing: IconButton.filledTonal(
+                      tooltip: 'Back',
+                      onPressed: () => Navigator.maybePop(context),
+                      icon: const Icon(Icons.arrow_back_rounded),
                     ),
                   ),
-                );
-              },
+                  Expanded(
+                    child: StreamBuilder<RequestPost?>(
+                      stream: widget.viewModel.post,
+                      builder: (context, snapshot) {
+                        if (snapshot.hasError) {
+                          return const Center(
+                            child: Text('Failed to load request'),
+                          );
+                        }
+
+                        if (!snapshot.hasData) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+
+                        final post = snapshot.data;
+
+                        if (post == null) {
+                          return const Center(child: Text('Post not found'));
+                        }
+
+                        if (post.isDeleted && !widget.viewModel.isOwner(post)) {
+                          return _unavailablePost(
+                            icon: Icons.delete_outline_rounded,
+                            title: 'This post has been deleted',
+                            message:
+                                'The requester deleted this post, so it is no longer available. Your earned rating and reward points will remain on your profile.',
+                          );
+                        }
+
+                        if (post.isBanned && !widget.viewModel.isOwner(post)) {
+                          return _unavailablePost(
+                            icon: Icons.block_rounded,
+                            title: 'This post has been banned',
+                            message: 'This request is currently unavailable.',
+                          );
+                        }
+
+                        return Scrollbar(
+                          thumbVisibility: true,
+                          thickness: 5,
+                          radius: const Radius.circular(20),
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.fromLTRB(18, 8, 18, 32),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _requestHeader(post),
+                                _section(
+                                  title: 'Status Progress',
+                                  icon: Icons.timeline_rounded,
+                                  child: _progress(post.status),
+                                ),
+                                if (widget.viewModel.isOwner(post) ||
+                                    post.pendingHelperId ==
+                                        widget.viewModel.currentUserId ||
+                                    post.matchedUserId != null)
+                                  _offers(post),
+                                _actionArea(post),
+                                _comments(),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -134,17 +162,19 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
   }
 
   Widget _requestHeader(RequestPost post) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: navy,
-        borderRadius: BorderRadius.circular(26),
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: colors.outlineVariant.withValues(alpha: .6)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.16),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
+            color: navy.withValues(alpha: 0.06),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
@@ -158,7 +188,7 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
               if (widget.viewModel.isOwner(post))
                 PopupMenuButton<String>(
                   color: Theme.of(context).cardColor,
-                  iconColor: Colors.white,
+                  iconColor: navy,
                   onSelected: (value) {
                     if (value == 'edit') _showEditPostDialog(post);
                     if (value == 'delete') _confirmDeletePost(post);
@@ -182,24 +212,30 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
                 ),
             ],
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 14),
           Text(
             post.title,
-            style: const TextStyle(
-              fontSize: 27,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
+            style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 12),
-          _infoPill(Icons.psychology_alt_rounded, 'Skill: ${post.skillNeeded}'),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+            decoration: BoxDecoration(
+              color: navy.withValues(alpha: .08),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              post.skillNeeded,
+              style: const TextStyle(color: navy, fontWeight: FontWeight.w700),
+            ),
+          ),
           const SizedBox(height: 10),
           Text(
             post.description,
-            style: const TextStyle(
-              fontSize: 16,
+            style: TextStyle(
+              fontSize: 15,
               height: 1.45,
-              color: Colors.white,
+              color: colors.onSurfaceVariant,
             ),
           ),
         ],
@@ -225,7 +261,7 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
       builder: (context) => AlertDialog(
         title: const Text('Delete Post?'),
         content: const Text(
-          'The post will disappear for users but remain recoverable by an administrator. Existing helper ratings and points will not be changed.',
+          'Are you sure you want to delete this post? If deleted, the post will no longer appear in your posts.',
         ),
         actions: [
           TextButton(
@@ -235,7 +271,7 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
+            child: const Text('Yes, Delete'),
           ),
         ],
       ),
@@ -243,32 +279,56 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
     if (confirmed != true) return;
     final ok = await widget.viewModel.deletePost(post);
     if (!mounted) return;
-    showResult(ok, 'Post moved to the recovery audit.');
+    showResult(ok, 'Post deleted.', destructive: true);
     if (ok) Navigator.pop(context);
   }
 
-  Widget _infoPill(IconData icon, String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 18, color: Colors.white),
-          const SizedBox(width: 7),
-          Flexible(
-            child: Text(
-              text,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
+  Widget _unavailablePost({
+    required IconData icon,
+    required String title,
+    required String message,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Container(
+          width: double.infinity,
+          constraints: const BoxConstraints(maxWidth: 460),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: colors.outlineVariant.withValues(alpha: .6),
             ),
           ),
-        ],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircleAvatar(
+                radius: 34,
+                backgroundColor: Colors.red.withValues(alpha: .1),
+                child: Icon(icon, size: 34, color: Colors.red),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: TextStyle(height: 1.45, color: colors.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -619,13 +679,13 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
   }
 
   Future<void> _rejectInvitationWithMessage() async {
-    final controller = TextEditingController();
+    var rejectionMessage = '';
     final message = await showDialog<String?>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Reject Invitation'),
         content: TextField(
-          controller: controller,
+          onChanged: (value) => rejectionMessage = value,
           maxLines: 3,
           decoration: const InputDecoration(
             labelText: 'Message (optional)',
@@ -638,13 +698,12 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text),
+            onPressed: () => Navigator.pop(context, rejectionMessage.trim()),
             child: const Text('Reject'),
           ),
         ],
       ),
     );
-    controller.dispose();
     if (message == null) return;
     showResult(
       await widget.viewModel.respondToPendingInvitation(
@@ -798,16 +857,19 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
     int? rank,
   }) {
     final accepted = offer.status == 'accepted';
+    final colors = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: () => showUserProfileDialog(context, userId: offer.userId),
       child: Container(
         margin: const EdgeInsets.only(bottom: 14),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: colors.surface,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: accepted ? Colors.green : const Color(0xFFE7EAF3),
+            color: accepted
+                ? Colors.green
+                : colors.outlineVariant.withValues(alpha: .65),
             width: accepted ? 2 : 1,
           ),
         ),
@@ -1256,13 +1318,18 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
 
               return Column(
                 children: comments.map((comment) {
+                  final colors = Theme.of(context).colorScheme;
                   return Container(
                     margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: colors.surfaceContainerHighest.withValues(
+                        alpha: .48,
+                      ),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE7EAF3)),
+                      border: Border.all(
+                        color: colors.outlineVariant.withValues(alpha: .55),
+                      ),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1310,7 +1377,9 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
                   decoration: InputDecoration(
                     hintText: 'Write a comment',
                     filled: true,
-                    fillColor: Colors.white,
+                    fillColor: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest.withValues(alpha: .6),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 14,
                       vertical: 12,
@@ -1465,49 +1534,58 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
     required IconData icon,
     required Widget child,
   }) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 22),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: navy, size: 23),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 21,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _card(child: child),
-        ],
-      ),
-    );
-  }
-
-  Widget _card({required Widget child}) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
+      margin: const EdgeInsets.only(top: 14),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFE8ECF5)),
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: colors.outlineVariant.withValues(alpha: .6)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
+            color: navy.withValues(alpha: .05),
             blurRadius: 14,
             offset: const Offset(0, 5),
           ),
         ],
       ),
-      child: child,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: brandGreen.withValues(alpha: .1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: brandGreen, size: 21),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 13),
+          Divider(
+            height: 1,
+            color: colors.outlineVariant.withValues(alpha: .55),
+          ),
+          const SizedBox(height: 15),
+          child,
+        ],
+      ),
     );
   }
 
@@ -1664,13 +1742,14 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
     required String title,
     required String message,
   }) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: colors.surfaceContainerHighest.withValues(alpha: .45),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE8ECF5)),
+        border: Border.all(color: colors.outlineVariant.withValues(alpha: .55)),
       ),
       child: Column(
         children: [
@@ -1678,9 +1757,9 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
           const SizedBox(height: 10),
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.bold,
-              color: darkText,
+              color: colors.onSurface,
             ),
           ),
           const SizedBox(height: 5),
@@ -1690,7 +1769,7 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
             style: TextStyle(
               fontSize: 13,
               height: 1.35,
-              color: Colors.grey.shade700,
+              color: colors.onSurfaceVariant,
             ),
           ),
         ],

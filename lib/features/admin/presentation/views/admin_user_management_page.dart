@@ -212,7 +212,10 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
 
     if (deletableUids.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You cannot delete your own account.')),
+        const SnackBar(
+          content: Text('You cannot delete your own account.'),
+          backgroundColor: Colors.red,
+        ),
       );
       return;
     }
@@ -293,7 +296,10 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${deletableUids.length} account(s) deleted.')),
+      SnackBar(
+        content: Text('${deletableUids.length} account(s) deleted.'),
+        backgroundColor: Colors.red,
+      ),
     );
   }
 

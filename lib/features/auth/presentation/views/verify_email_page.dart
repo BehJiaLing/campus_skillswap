@@ -75,6 +75,7 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
 
       showMessage(
         'Verification email sent again. Please check your inbox or spam folder.',
+        success: true,
       );
     } catch (e) {
       showMessage('Failed to resend email. Please try again later.');
@@ -95,10 +96,13 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
     Navigator.pushReplacementNamed(context, '/login');
   }
 
-  void showMessage(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+  void showMessage(String message, {bool success = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: success ? const Color(0xFF12A875) : Colors.red,
+      ),
+    );
   }
 
   @override

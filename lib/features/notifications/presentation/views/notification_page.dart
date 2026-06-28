@@ -253,6 +253,7 @@ class NotificationPage extends StatelessWidget {
                     : 'Invitation declined.'
               : viewModel.errorMessage ?? 'Unable to respond.',
         ),
+        backgroundColor: ok && accepted ? const Color(0xFF12A875) : Colors.red,
       ),
     );
   }

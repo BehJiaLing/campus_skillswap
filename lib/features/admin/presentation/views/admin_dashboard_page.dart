@@ -351,34 +351,288 @@ class AdminDashboardPage extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Ranking',
+            'Top Helper Ranking',
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
               color: textColor,
             ),
           ),
+          Text(
+            'Students ranked by average rating and reward points',
+            style: TextStyle(fontSize: 14, color: subTextColor),
+          ),
           const SizedBox(height: 20),
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 32),
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.star_outline_rounded,
-                    size: 48,
-                    color: subTextColor,
+          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: FirebaseFirestore.instance.collection('users').snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return _rankingEmptyState(
+                  icon: Icons.error_outline_rounded,
+                  message: 'Unable to load helper rankings.',
+                  color: Colors.redAccent,
+                  textColor: subTextColor,
+                );
+              }
+              if (!snapshot.hasData) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 28),
+                    child: CircularProgressIndicator(),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Ranking content feature coming soon',
-                    style: TextStyle(color: subTextColor, fontSize: 14),
+                );
+              }
+
+              final students =
+                  snapshot.data!.docs
+                      .map((document) => _RankedStudent(data: document.data()))
+                      .where(
+                        (student) =>
+                            student.role != 'admin' &&
+                            student.role != 'superadmin' &&
+                            !student.banned,
+                      )
+                      .toList()
+                    ..sort((first, second) {
+                      final ratingOrder = second.rating.compareTo(first.rating);
+                      if (ratingOrder != 0) return ratingOrder;
+                      final pointsOrder = second.points.compareTo(first.points);
+                      if (pointsOrder != 0) return pointsOrder;
+                      final reviewOrder = second.ratingCount.compareTo(
+                        first.ratingCount,
+                      );
+                      if (reviewOrder != 0) return reviewOrder;
+                      return first.name.toLowerCase().compareTo(
+                        second.name.toLowerCase(),
+                      );
+                    });
+
+              final ranked = students
+                  .where(
+                    (student) =>
+                        student.rating > 0 ||
+                        student.points > 0 ||
+                        student.ratingCount > 0,
+                  )
+                  .take(5)
+                  .toList();
+
+              if (ranked.isEmpty) {
+                return _rankingEmptyState(
+                  icon: Icons.emoji_events_outlined,
+                  message:
+                      'No helper ratings yet. Rankings will appear after completed skill exchanges.',
+                  color: subTextColor,
+                  textColor: subTextColor,
+                );
+              }
+
+              return Column(
+                children: List.generate(
+                  ranked.length,
+                  (index) => _rankingRow(
+                    student: ranked[index],
+                    rank: index + 1,
+                    isDark: isDark,
+                    showDivider: index < ranked.length - 1,
                   ),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _rankingRow({
+    required _RankedStudent student,
+    required int rank,
+    required bool isDark,
+    required bool showDivider,
+  }) {
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subTextColor = isDark ? Colors.white60 : Colors.grey.shade600;
+    final surfaceColor = isDark
+        ? const Color(0xFF273449)
+        : const Color(0xFFF8F9FD);
+    final rankColor = switch (rank) {
+      1 => const Color(0xFFFFB300),
+      2 => const Color(0xFF90A4AE),
+      3 => const Color(0xFFBF7A45),
+      _ => const Color(0xFF1A1F5E),
+    };
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+          decoration: BoxDecoration(
+            color: rank == 1
+                ? rankColor.withValues(alpha: isDark ? .14 : .09)
+                : surfaceColor,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: rank == 1
+                  ? rankColor.withValues(alpha: .45)
+                  : isDark
+                  ? darkBorder
+                  : const Color(0xFFE8E8F2),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: rankColor.withValues(alpha: .14),
+                  shape: BoxShape.circle,
+                ),
+                child: rank <= 3
+                    ? Icon(
+                        Icons.emoji_events_rounded,
+                        color: rankColor,
+                        size: 20,
+                      )
+                    : Text(
+                        '$rank',
+                        style: TextStyle(
+                          color: rankColor,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+              ),
+              const SizedBox(width: 11),
+              CircleAvatar(
+                radius: 23,
+                backgroundColor: const Color(0xFFE8E4F8),
+                backgroundImage: student.photoUrl.isEmpty
+                    ? null
+                    : NetworkImage(student.photoUrl),
+                child: student.photoUrl.isEmpty
+                    ? const Icon(Icons.person_rounded, color: Color(0xFF1A1F5E))
+                    : null,
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            student.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        if (rank == 1)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: rankColor.withValues(alpha: .14),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              'TOP',
+                              style: TextStyle(
+                                color: rankColor,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      student.course,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: subTextColor, fontSize: 12),
+                    ),
+                    const SizedBox(height: 7),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 5,
+                      children: [
+                        _rankingMetric(
+                          Icons.star_rounded,
+                          student.rating.toStringAsFixed(1),
+                          Colors.amber.shade700,
+                        ),
+                        _rankingMetric(
+                          Icons.rate_review_rounded,
+                          '${student.ratingCount} reviews',
+                          const Color(0xFF7C5CBF),
+                        ),
+                        _rankingMetric(
+                          Icons.workspace_premium_rounded,
+                          '${student.points} pts',
+                          const Color(0xFF12A875),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (showDivider) const SizedBox(height: 10),
+      ],
+    );
+  }
+
+  Widget _rankingMetric(IconData icon, String label, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 15, color: color),
+        const SizedBox(width: 3),
+        Text(
+          label,
+          style: TextStyle(
+            color: color,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _rankingEmptyState({
+    required IconData icon,
+    required String message,
+    required Color color,
+    required Color textColor,
+  }) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 12),
+        child: Column(
+          children: [
+            Icon(icon, size: 44, color: color),
+            const SizedBox(height: 10),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: textColor, height: 1.4),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -413,6 +667,34 @@ class AdminDashboardPage extends StatelessWidget {
       ),
     );
   }
+}
+
+class _RankedStudent {
+  const _RankedStudent({required this.data});
+
+  final Map<String, dynamic> data;
+
+  String get name =>
+      (data['name'] ?? data['fullName'] ?? data['displayName'] ?? 'Student')
+          .toString();
+
+  String get course {
+    final value = (data['course'] ?? data['programme'] ?? '').toString().trim();
+    return value.isEmpty ? 'Course not provided' : value;
+  }
+
+  String get photoUrl =>
+      (data['photoUrl'] ?? data['profileImageUrl'] ?? '').toString().trim();
+
+  String get role => (data['role'] ?? 'user').toString().toLowerCase().trim();
+
+  bool get banned => data['banned'] == true || data['suspended'] == true;
+
+  double get rating => (data['averageRating'] as num?)?.toDouble() ?? 0;
+
+  int get ratingCount => (data['ratingCount'] as num?)?.toInt() ?? 0;
+
+  int get points => (data['rewardPoints'] as num?)?.toInt() ?? 0;
 }
 
 class DynamicPiePainter extends CustomPainter {

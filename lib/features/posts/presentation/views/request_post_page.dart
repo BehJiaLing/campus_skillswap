@@ -214,7 +214,9 @@ class MyPostsPage extends StatelessWidget {
   }
 
   Widget _status(RequestPost post) {
-    final (label, color) = post.isBanned
+    final (label, color) = post.isDeleted
+        ? ('DELETED', Colors.red)
+        : post.isBanned
         ? ('BANNED', Colors.red)
         : switch (post.status) {
             RequestPostStatus.open => ('OPEN', green),

@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -77,16 +79,6 @@ class ProfilePage extends StatelessWidget {
                 SkillSwapPageHeader(
                   title: 'My Profile',
                   subtitle: 'Your skills, reputation and campus activity.',
-                  trailing: IconButton.filledTonal(
-                    tooltip: 'Edit profile',
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const ProfileEditPage(),
-                      ),
-                    ),
-                    icon: const Icon(Icons.edit_rounded),
-                  ),
                 ),
                 Expanded(
                   child: ListView(
@@ -104,6 +96,7 @@ class ProfilePage extends StatelessWidget {
                         child: Column(
                           children: [
                             Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 CircleAvatar(
                                   radius: 40,
@@ -147,6 +140,20 @@ class ProfilePage extends StatelessWidget {
                                       ),
                                     ],
                                   ),
+                                ),
+                                IconButton.filledTonal(
+                                  tooltip: 'Edit profile',
+                                  style: IconButton.styleFrom(
+                                    foregroundColor: navy,
+                                    backgroundColor: const Color(0xFFE8EEFF),
+                                  ),
+                                  onPressed: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const ProfileEditPage(),
+                                    ),
+                                  ),
+                                  icon: const Icon(Icons.edit_rounded),
                                 ),
                               ],
                             ),
@@ -392,45 +399,177 @@ class ProfilePage extends StatelessWidget {
 
   void _showPointsBarcode(BuildContext context, int points, String userId) {
     final seed = userId.codeUnits.fold<int>(points + 1, (a, b) => a + b);
-    showDialog<void>(
+    showGeneralDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Reward Redemption'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Scan this barcode to view the available points.'),
-            const SizedBox(height: 18),
-            Container(
-              height: 110,
-              padding: const EdgeInsets.all(12),
-              color: Colors.white,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: List.generate(42, (index) {
-                  final width = ((seed + index * 7) % 3 + 1).toDouble();
-                  return Container(
-                    width: width,
-                    margin: EdgeInsets.only(right: index.isEven ? 2 : 1),
-                    color: index % 4 == 0 ? Colors.transparent : Colors.black,
-                  );
-                }),
+      barrierDismissible: true,
+      barrierLabel: 'Close reward redemption',
+      barrierColor: Colors.black.withValues(alpha: .64),
+      transitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (dialogContext, _, _) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+        child: SafeArea(
+          child: Center(
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                width: MediaQuery.sizeOf(dialogContext).width * .9,
+                constraints: const BoxConstraints(maxWidth: 460),
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: Theme.of(dialogContext).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(28),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(20, 18, 10, 18),
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Color(0xFF102A72), Color(0xFF17469A)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: .14),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Icon(
+                              Icons.qr_code_2_rounded,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Reward Redemption',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                Text(
+                                  'Campus SkillSwap rewards',
+                                  style: TextStyle(color: Colors.white70),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton.filledTonal(
+                            tooltip: 'Close',
+                            onPressed: () => Navigator.pop(dialogContext),
+                            icon: const Icon(Icons.close_rounded),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(22),
+                      child: Column(
+                        children: [
+                          Text(
+                            'Available points',
+                            style: TextStyle(
+                              color: Theme.of(
+                                dialogContext,
+                              ).colorScheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            '$points',
+                            style: const TextStyle(
+                              color: green,
+                              fontSize: 34,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          Container(
+                            width: double.infinity,
+                            height: 130,
+                            padding: const EdgeInsets.all(18),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(
+                                color: const Color(0xFFE3E8F2),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: List.generate(42, (index) {
+                                final width = ((seed + index * 7) % 3 + 1)
+                                    .toDouble();
+                                return Container(
+                                  width: width,
+                                  margin: EdgeInsets.only(
+                                    right: index.isEven ? 2 : 1,
+                                  ),
+                                  color: index % 4 == 0
+                                      ? Colors.transparent
+                                      : Colors.black,
+                                );
+                              }),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          Text(
+                            'Show this barcode when redeeming your SkillSwap points.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              height: 1.4,
+                              color: Theme.of(
+                                dialogContext,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: navy,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              onPressed: () => Navigator.pop(dialogContext),
+                              child: const Text('Done'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 14),
-            Text(
-              '$points points',
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
           ),
-        ],
+        ),
+      ),
+      transitionBuilder: (context, animation, _, child) => FadeTransition(
+        opacity: animation,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: .96, end: 1).animate(animation),
+          child: child,
+        ),
       ),
     );
   }

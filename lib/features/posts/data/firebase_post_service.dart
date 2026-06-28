@@ -189,6 +189,17 @@ class FirebasePostService {
     if (data == null || data['userId'] != userId) {
       throw Exception('Only the post owner can delete this post.');
     }
+    final offersSnapshot = await postRef.collection('offers').get();
+    final recipients =
+        <String>{
+          ...offersSnapshot.docs.map((document) => document.id),
+          data['matchedUserId']?.toString() ?? '',
+          data['pendingHelperId']?.toString() ?? '',
+        }..removeWhere(
+          (recipientId) => recipientId.isEmpty || recipientId == userId,
+        );
+    final postTitle = data['title']?.toString() ?? 'Skill request';
+    final ownerName = data['userName']?.toString() ?? 'Request owner';
     final batch = _firestore.batch();
     batch.set(
       _firestore.collection('deleted_posts_history').doc(postId),
@@ -211,6 +222,21 @@ class FirebasePostService {
       'deletedByUid': userId,
       'updatedAt': FieldValue.serverTimestamp(),
     });
+    for (final recipientId in recipients) {
+      batch.set(_notifications.doc(), {
+        'recipientId': recipientId,
+        'senderId': userId,
+        'senderName': ownerName,
+        'type': 'post_deleted',
+        'postId': postId,
+        'postTitle': postTitle,
+        'message':
+            '$ownerName deleted "$postTitle". The post is no longer available. Any rating and reward points already earned will remain.',
+        'status': 'info',
+        'isRead': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    }
     await batch.commit();
   }
 

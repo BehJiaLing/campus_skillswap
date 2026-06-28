@@ -12,7 +12,6 @@ class HelperPostsViewModel {
                   .where(
                     (post) =>
                         post.matchedUserId == authRepository.currentUserId &&
-                        !post.isDeleted &&
                         !post.isBanned,
                   )
                   .toList(growable: false),

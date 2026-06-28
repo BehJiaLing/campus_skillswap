@@ -124,9 +124,9 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
   }
 
   void showMessage(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
   }
 
   Widget _label(String text) {
@@ -170,7 +170,7 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
 
   Widget _campusDropdown() {
     return DropdownButtonFormField<String>(
-      value: _selectedCampus,
+      initialValue: _selectedCampus,
       isExpanded: true,
       decoration: InputDecoration(
         hintText: 'Select your campus / branch',
@@ -209,7 +209,7 @@ class _CreateProfilePageState extends State<CreateProfilePage> {
 
   Widget _courseDropdown() {
     return DropdownButtonFormField<String>(
-      value: _selectedCourse,
+      initialValue: _selectedCourse,
       isExpanded: true,
       decoration: InputDecoration(
         hintText: 'Select your course',

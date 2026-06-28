@@ -170,6 +170,17 @@ class MyApp extends StatelessWidget {
               backgroundColor: Color(0xFF1A1F5E),
               foregroundColor: Colors.white,
             ),
+            snackBarTheme: SnackBarThemeData(
+              backgroundColor: const Color(0xFF12A875),
+              behavior: SnackBarBehavior.floating,
+              contentTextStyle: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
             textTheme: const TextTheme(bodyMedium: TextStyle(color: darkText)),
           ),
           darkTheme: ThemeData(
@@ -190,6 +201,17 @@ class MyApp extends StatelessWidget {
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
                 borderSide: BorderSide.none,
+              ),
+            ),
+            snackBarTheme: SnackBarThemeData(
+              backgroundColor: const Color(0xFF12A875),
+              behavior: SnackBarBehavior.floating,
+              contentTextStyle: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
               ),
             ),
           ),
