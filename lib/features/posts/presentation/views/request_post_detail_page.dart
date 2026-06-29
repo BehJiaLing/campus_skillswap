@@ -103,7 +103,12 @@ class _RequestPostDetailPageState extends State<RequestPostDetailPage> {
                         final post = snapshot.data;
 
                         if (post == null) {
-                          return const Center(child: Text('Post not found'));
+                          return _unavailablePost(
+                            icon: Icons.delete_outline_rounded,
+                            title: 'This post has been deleted',
+                            message:
+                                'This request is no longer available because it was permanently deleted.',
+                          );
                         }
 
                         if (post.isDeleted && !widget.viewModel.isOwner(post)) {

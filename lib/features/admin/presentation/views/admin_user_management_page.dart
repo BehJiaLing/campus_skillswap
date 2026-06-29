@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -235,7 +237,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
             ),
           ),
           content: Text(
-            'Are you sure you want to delete ${deletableUids.length} account(s)?\n\nThis will remove the user records from Firestore and save a delete history record.',
+            'Are you sure you want to delete ${deletableUids.length} account(s)?\n\nAll posts created by these users will be permanently deleted and cannot be restored. Helpers will be notified.',
             style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
           ),
           actions: [
@@ -258,49 +260,200 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
 
     if (confirm != true) return;
 
-    final batch = FirebaseFirestore.instance.batch();
+    try {
+      var deletedPostCount = 0;
+      final accountBatch = FirebaseFirestore.instance.batch();
 
-    for (final uid in deletableUids) {
-      final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
-      final userDoc = await userRef.get();
-      final userData = userDoc.data() ?? {};
+      for (final uid in deletableUids) {
+        final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+        final userDoc = await userRef.get();
+        final userData = userDoc.data() ?? <String, dynamic>{};
+        final userEmail = _getEmail(userData).trim().toLowerCase();
 
-      final historyRef = FirebaseFirestore.instance
-          .collection('deleted_users_history')
-          .doc();
+        deletedPostCount += await _hardDeletePostsOwnedBy(
+          uid: uid,
+          ownerName: _getName(userData),
+          adminUid: currentUid ?? '',
+        );
 
-      batch.set(historyRef, {
-        'deletedUserUid': uid,
-        'deletedUserName': _getName(userData),
-        'deletedUserEmail': _getEmail(userData),
-        'deletedUserCampus': _getCampus(userData),
-        'deletedUserCourse': _getCourse(userData),
-        'deletedUserSkills': _getSkills(userData),
-        'deletedUserRole': _getRole(userData),
-        'deletedByUid': currentUid,
-        'deletedByEmail': currentEmail,
-        'deletedAt': FieldValue.serverTimestamp(),
-        'isRestored': false,
+        final userNotifications = await FirebaseFirestore.instance
+            .collection('notifications')
+            .where('recipientId', isEqualTo: uid)
+            .get();
+        await _deleteReferences(
+          userNotifications.docs.map((document) => document.reference).toList(),
+        );
+
+        if (userEmail.isNotEmpty && userEmail != 'no email') {
+          accountBatch.delete(
+            FirebaseFirestore.instance
+                .collection('registered_emails')
+                .doc(userEmail),
+          );
+        }
+
+        final historyRef = FirebaseFirestore.instance
+            .collection('deleted_users_history')
+            .doc();
+
+        accountBatch.set(historyRef, {
+          'deletedUserUid': uid,
+          'deletedUserName': _getName(userData),
+          'deletedUserEmail': _getEmail(userData),
+          'deletedUserCampus': _getCampus(userData),
+          'deletedUserCourse': _getCourse(userData),
+          'deletedUserSkills': _getSkills(userData),
+          'deletedUserRole': _getRole(userData),
+          'deletedByUid': currentUid,
+          'deletedByEmail': currentEmail,
+          'deletedAt': FieldValue.serverTimestamp(),
+          'postsPermanentlyDeleted': true,
+          'isRestored': false,
+        });
+
+        accountBatch.delete(userRef);
+      }
+
+      await accountBatch.commit();
+
+      if (!mounted) return;
+
+      setState(() {
+        selectedUsers.clear();
+        selectionMode = false;
       });
 
-      batch.delete(userRef);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${deletableUids.length} account(s) and $deletedPostCount post(s) permanently deleted.',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Unable to delete the selected account(s): $error'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<int> _hardDeletePostsOwnedBy({
+    required String uid,
+    required String ownerName,
+    required String adminUid,
+  }) async {
+    final firestore = FirebaseFirestore.instance;
+    final currentPosts = await firestore
+        .collection('posts')
+        .where('userId', isEqualTo: uid)
+        .get();
+    final legacyPosts = await firestore
+        .collection('posts')
+        .where('ownerUid', isEqualTo: uid)
+        .get();
+    final postsById = <String, QueryDocumentSnapshot<Map<String, dynamic>>>{
+      for (final document in currentPosts.docs) document.id: document,
+      for (final document in legacyPosts.docs) document.id: document,
+    };
+
+    for (final post in postsById.values) {
+      await _hardDeletePost(
+        post: post,
+        ownerUid: uid,
+        ownerName: ownerName,
+        adminUid: adminUid,
+      );
+    }
+    return postsById.length;
+  }
+
+  Future<void> _hardDeletePost({
+    required QueryDocumentSnapshot<Map<String, dynamic>> post,
+    required String ownerUid,
+    required String ownerName,
+    required String adminUid,
+  }) async {
+    final firestore = FirebaseFirestore.instance;
+    final postRef = post.reference;
+    final data = post.data();
+    final title = (data['title'] ?? 'Skill request').toString();
+    final offers = await postRef.collection('offers').get();
+    final recipients =
+        <String>{
+          ...offers.docs.map((document) => document.id),
+          data['pendingHelperId']?.toString() ?? '',
+          data['matchedUserId']?.toString() ?? '',
+        }..removeWhere(
+          (recipientId) => recipientId.isEmpty || recipientId == ownerUid,
+        );
+
+    if (recipients.isNotEmpty) {
+      final notificationBatch = firestore.batch();
+      for (final recipientId in recipients) {
+        notificationBatch.set(firestore.collection('notifications').doc(), {
+          'recipientId': recipientId,
+          'senderId': adminUid,
+          'senderName': 'Campus SkillSwap Admin',
+          'type': 'post_owner_deleted',
+          'postId': post.id,
+          'postTitle': title,
+          'message':
+              'The post "$title" was permanently deleted because $ownerName\'s account was removed. Any rating and reward points already earned will remain.',
+          'status': 'rejected',
+          'isRead': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+      await notificationBatch.commit();
     }
 
-    await batch.commit();
+    final references = <DocumentReference<Map<String, dynamic>>>[];
+    for (final name in const ['offers', 'comments', 'ratings', 'ai_matches']) {
+      final snapshot = await postRef.collection(name).get();
+      references.addAll(snapshot.docs.map((document) => document.reference));
+    }
 
-    if (!mounted) return;
+    final chatIds = <String>{
+      data['chatId']?.toString() ?? '',
+      'request_${post.id}',
+    }..remove('');
+    final relatedChats = await firestore
+        .collection('chats')
+        .where('postId', isEqualTo: post.id)
+        .get();
+    chatIds.addAll(relatedChats.docs.map((document) => document.id));
+    for (final chatId in chatIds) {
+      final chatRef = firestore.collection('chats').doc(chatId);
+      final messages = await chatRef.collection('messages').get();
+      references.addAll(messages.docs.map((document) => document.reference));
+      references.add(chatRef);
+    }
 
-    setState(() {
-      selectedUsers.clear();
-      selectionMode = false;
-    });
+    references.addAll([
+      firestore.collection('deleted_posts_history').doc(post.id),
+      firestore.collection('banned_posts_history').doc(post.id),
+      postRef,
+    ]);
+    await _deleteReferences(references);
+  }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${deletableUids.length} account(s) deleted.'),
-        backgroundColor: Colors.red,
-      ),
-    );
+  Future<void> _deleteReferences(
+    List<DocumentReference<Map<String, dynamic>>> references,
+  ) async {
+    const chunkSize = 400;
+    for (var start = 0; start < references.length; start += chunkSize) {
+      final end = math.min(start + chunkSize, references.length);
+      final batch = FirebaseFirestore.instance.batch();
+      for (final reference in references.sublist(start, end)) {
+        batch.delete(reference);
+      }
+      await batch.commit();
+    }
   }
 
   void _toggleSelection(String uid) {
