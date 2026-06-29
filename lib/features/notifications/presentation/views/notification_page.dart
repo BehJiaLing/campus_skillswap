@@ -5,6 +5,7 @@ import '../../../../core/widgets/blocking_loading_overlay.dart';
 import '../../../../core/widgets/skill_swap_page_header.dart';
 import '../../../posts/presentation/view_models/request_post_detail_view_model.dart';
 import '../../../posts/presentation/views/request_post_detail_page.dart';
+import '../../../posts/presentation/views/deleted_post_notice_page.dart';
 import '../../../chat/presentation/views/chat_detail_page.dart';
 import '../../models/app_notification.dart';
 import '../view_models/notification_view_model.dart';
@@ -106,6 +107,18 @@ class NotificationPage extends StatelessWidget {
                   userName: item.senderName,
                   chatId: item.chatId!,
                   otherUserId: item.senderId,
+                ),
+              ),
+            );
+            return;
+          }
+          if (item.type == 'post_owner_deleted') {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => DeletedPostNoticePage(
+                  postTitle: item.postTitle,
+                  message: item.message,
                 ),
               ),
             );
@@ -271,6 +284,7 @@ class NotificationPage extends StatelessWidget {
     'post_unbanned' => Icons.restore_rounded,
     'post_restored' => Icons.restore_from_trash_rounded,
     'post_deleted' => Icons.delete_outline_rounded,
+    'post_owner_deleted' => Icons.delete_forever_rounded,
     'offer_on_hold' => Icons.hourglass_top_rounded,
     _ => Icons.notifications,
   };
